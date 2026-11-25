@@ -1,3 +1,7 @@
+import io
+
+from PIL import Image
+
 from event_preisliste import create_app
 
 
@@ -45,3 +49,23 @@ def test_rejects_invalid_slug_and_cross_origin(tmp_path):
     assert "Noch keine Veranstaltung" in client.get("/admin").get_data(as_text=True)
     response = client.post("/admin/events", headers={"Origin": "https://evil.example"}, data={"title": "Test", "slug": "test"})
     assert response.status_code == 403
+
+
+def test_interactive_map_upload_and_marker(tmp_path):
+    client = app(tmp_path).test_client()
+    login(client)
+    client.post("/admin/events", data={"title": "Feuerwehrfest", "slug": "feuerwehrfest"})
+    image_data = io.BytesIO()
+    Image.new("RGB", (40, 20), "white").save(image_data, format="PNG")
+    image_data.seek(0)
+    response = client.post("/admin/events/1/map", data={"map": (image_data, "plan.png")}, content_type="multipart/form-data")
+    assert response.status_code == 302
+    response = client.post("/admin/events/1/markers", data={
+        "label": "Getränkestand", "description": "Punsch und Saft", "kind": "getraenk", "x": "25.5", "y": "70.25",
+    })
+    assert response.status_code == 302
+    client.post("/admin/events/1/toggle")
+    page = client.get("/e/feuerwehrfest")
+    assert "Interaktiver Plan" in page.get_data(as_text=True)
+    assert "Getränkestand" in page.get_data(as_text=True)
+    assert client.get("/e/feuerwehrfest/map").status_code == 200

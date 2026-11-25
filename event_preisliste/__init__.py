@@ -8,8 +8,9 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import qrcode
+from PIL import Image, UnidentifiedImageError
 from flask import (Flask, abort, flash, redirect, render_template, request,
-                   send_file, session, url_for)
+                   send_file, send_from_directory, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -22,6 +23,8 @@ def create_app(test_config=None):
     if test_config:
         data_dir = Path(test_config.get("DATA_DIR", data_dir))
     data_dir.mkdir(parents=True, exist_ok=True)
+    map_dir = data_dir / "maps"
+    map_dir.mkdir(exist_ok=True)
     secret_file = data_dir / ".secret"
     if secret_file.exists():
         secret = secret_file.read_text().strip()
@@ -61,7 +64,15 @@ def create_app(test_config=None):
                 description TEXT NOT NULL DEFAULT '', price_cents INTEGER NOT NULL,
                 sort_order INTEGER NOT NULL DEFAULT 0, available INTEGER NOT NULL DEFAULT 1
             );
+            CREATE TABLE IF NOT EXISTS map_markers (
+                id INTEGER PRIMARY KEY, event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                label TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT 'stand',
+                x_percent REAL NOT NULL, y_percent REAL NOT NULL
+            );
         """)
+        columns = {row["name"] for row in con.execute("PRAGMA table_info(events)")}
+        if "map_filename" not in columns:
+            con.execute("ALTER TABLE events ADD COLUMN map_filename TEXT NOT NULL DEFAULT ''")
 
     def admin_required():
         if not session.get("admin"):
@@ -85,7 +96,7 @@ def create_app(test_config=None):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "same-origin"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; form-action 'self'; frame-ancestors 'none'"
         return response
 
     @app.get("/")
@@ -101,10 +112,19 @@ def create_app(test_config=None):
             if not event:
                 abort(404)
             items = con.execute("SELECT * FROM items WHERE event_id=? AND available=1 ORDER BY category,sort_order,id", (event["id"],)).fetchall()
+            markers = con.execute("SELECT * FROM map_markers WHERE event_id=? ORDER BY id", (event["id"],)).fetchall()
         groups = {}
         for item in items:
             groups.setdefault(item["category"], []).append(item)
-        return render_template("event.html", event=event, groups=groups)
+        return render_template("event.html", event=event, groups=groups, markers=markers)
+
+    @app.get("/e/<slug>/map")
+    def event_map(slug):
+        with db() as con:
+            event = con.execute("SELECT map_filename FROM events WHERE slug=? AND published=1", (slug,)).fetchone()
+        if not event or not event["map_filename"]:
+            abort(404)
+        return send_from_directory(map_dir, event["map_filename"], max_age=3600)
 
     @app.get("/e/<slug>/qr.png")
     def event_qr(slug):
@@ -170,9 +190,85 @@ def create_app(test_config=None):
         with db() as con:
             event = con.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
             items = con.execute("SELECT * FROM items WHERE event_id=? ORDER BY category,sort_order,id", (event_id,)).fetchall()
+            markers = con.execute("SELECT * FROM map_markers WHERE event_id=? ORDER BY id", (event_id,)).fetchall()
         if not event:
             abort(404)
-        return render_template("edit.html", event=event, items=items)
+        return render_template("edit.html", event=event, items=items, markers=markers)
+
+    @app.post("/admin/events/<int:event_id>/map")
+    def upload_map(event_id):
+        admin_required()
+        upload = request.files.get("map")
+        if not upload or not upload.filename:
+            flash("Bitte ein Planbild auswählen.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        data = upload.read(2 * 1024 * 1024 + 1)
+        extension = None
+        if len(data) <= 2 * 1024 * 1024:
+            try:
+                with Image.open(io.BytesIO(data)) as image:
+                    image.verify()
+                    extension = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}.get(image.format)
+            except (UnidentifiedImageError, OSError):
+                pass
+        if not extension or len(data) > 2 * 1024 * 1024:
+            flash("Erlaubt sind PNG, JPEG oder WebP bis 2 MB.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        with db() as con:
+            event = con.execute("SELECT map_filename FROM events WHERE id=?", (event_id,)).fetchone()
+            if not event:
+                abort(404)
+            filename = f"event-{event_id}-{secrets.token_hex(6)}{extension}"
+            (map_dir / filename).write_bytes(data)
+            old = event["map_filename"]
+            con.execute("UPDATE events SET map_filename=? WHERE id=?", (filename, event_id))
+        if old and re.fullmatch(r"event-[0-9]+-[0-9a-f]+\.(png|jpg|webp)", old):
+            try:
+                (map_dir / old).unlink()
+            except FileNotFoundError:
+                pass
+        flash("Plan wurde gespeichert.", "success")
+        return redirect(url_for("edit_event", event_id=event_id))
+
+    @app.get("/admin/events/<int:event_id>/map")
+    def admin_map(event_id):
+        admin_required()
+        with db() as con:
+            event = con.execute("SELECT map_filename FROM events WHERE id=?", (event_id,)).fetchone()
+        if not event or not event["map_filename"]:
+            abort(404)
+        return send_from_directory(map_dir, event["map_filename"], max_age=0)
+
+    @app.post("/admin/events/<int:event_id>/markers")
+    def add_marker(event_id):
+        admin_required()
+        label = request.form.get("label", "").strip()[:80]
+        description = request.form.get("description", "").strip()[:180]
+        kind = request.form.get("kind", "stand")
+        if kind not in {"stand", "essen", "getraenk", "wc", "eingang", "info", "hilfe"}:
+            kind = "stand"
+        try:
+            x = float(request.form.get("x", ""))
+            y = float(request.form.get("y", ""))
+        except ValueError:
+            x = y = -1
+        if not label or not 0 <= x <= 100 or not 0 <= y <= 100:
+            flash("Auf den Plan tippen und einen Namen für den Punkt eingeben.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        with db() as con:
+            event = con.execute("SELECT map_filename FROM events WHERE id=?", (event_id,)).fetchone()
+            if not event or not event["map_filename"]:
+                flash("Bitte zuerst ein Planbild hochladen.", "error")
+                return redirect(url_for("edit_event", event_id=event_id))
+            con.execute("INSERT INTO map_markers(event_id,label,description,kind,x_percent,y_percent) VALUES(?,?,?,?,?,?)", (event_id, label, description, kind, x, y))
+        return redirect(url_for("edit_event", event_id=event_id))
+
+    @app.post("/admin/events/<int:event_id>/markers/<int:marker_id>/delete")
+    def delete_marker(event_id, marker_id):
+        admin_required()
+        with db() as con:
+            con.execute("DELETE FROM map_markers WHERE id=? AND event_id=?", (marker_id, event_id))
+        return redirect(url_for("edit_event", event_id=event_id))
 
     @app.post("/admin/events/<int:event_id>/toggle")
     def toggle_event(event_id):
@@ -213,6 +309,6 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "version": "0.1.0"}
+        return {"ok": True, "version": "0.2.0"}
 
     return app

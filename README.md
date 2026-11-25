@@ -9,6 +9,7 @@ Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehr
 - Artikel nach Kategorien mit Beschreibung und Europreis
 - Event zunächst als Entwurf vorbereiten und später veröffentlichen
 - eigener QR-Code zum Herunterladen und Ausdrucken
+- interaktiver Geländeplan mit hochgeladenem Planbild und anklickbaren Punkten für Stände, Essen, Getränke, WC, Eingang, Information und Erste Hilfe
 - große, schnelle Handyansicht ohne App und ohne externe Schriftarten
 - persistente SQLite-Daten im Docker-Volume
 - Adminbereich mit Passwort, Same-Origin-Schutz und Sicherheitsheadern
@@ -44,6 +45,14 @@ python3 -m venv .venv
 pip install -r requirements-dev.txt
 pytest -q
 ```
+
+## Interaktiven Plan einrichten
+
+1. Veranstaltung in der Verwaltung öffnen.
+2. Unter **Interaktiver Plan** ein PNG-, JPEG- oder WebP-Bild bis 2 MB hochladen.
+3. Auf die gewünschte Position im Plan tippen.
+4. Name, Art und Beschreibung eingeben und **Punkt hinzufügen** wählen.
+5. Auf der öffentlichen Eventseite können Gäste die nummerierten Punkte antippen.
 
 ## Geplante nächste Schritte
 

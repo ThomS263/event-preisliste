@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "event-preisliste"
-version = "0.1.0"
+version = "0.2.0"
 description = "QR-Code-Preislisten für Veranstaltungen"
 requires-python = ">=3.12"
 dependencies = [
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [tool.setuptools.package-data]
-event_preisliste = ["templates/*.html", "static/*.css"]
+event_preisliste = ["templates/*.html", "static/*.css", "static/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
