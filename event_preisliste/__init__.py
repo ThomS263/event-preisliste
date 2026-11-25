@@ -403,7 +403,7 @@ def create_app(test_config=None):
             for path in map_dir.glob("event-*"):
                 if path.is_file():
                     archive.write(path, f"maps/{path.name}")
-            archive.writestr("backup.json", json.dumps({"version": "0.4.2", "created": int(time.time())}))
+            archive.writestr("backup.json", json.dumps({"version": "0.5.0", "created": int(time.time())}))
         output.seek(0)
         return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"event-preisliste-{time.strftime('%Y%m%d')}.zip")
 
@@ -433,7 +433,7 @@ def create_app(test_config=None):
 
     @app.get("/service-worker.js")
     def service_worker():
-        script = "const C='event-preisliste-v1';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css']))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
+        script = "const C='event-preisliste-v2';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css','/static/extras.css','/static/logo.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
         return Response(script, mimetype="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
     @app.post("/admin/events/<int:event_id>/items")
@@ -494,6 +494,6 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "version": "0.4.2"}
+        return {"ok": True, "version": "0.5.0"}
 
     return app

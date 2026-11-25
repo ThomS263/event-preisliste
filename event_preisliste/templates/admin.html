@@ -1,9 +1,47 @@
-{% extends "base.html" %}{% block title %}Admin-Panel{% endblock %}
-{% block content %}
-<div class="title-row"><div><p class="eyebrow">Admin-Panel</p><h1>Übersicht</h1><p>Events, Preise, QR-Codes und Pläne zentral verwalten.</p></div><form method="post" action="{{ url_for('logout') }}"><button class="secondary">Abmelden</button></form></div>
-<section class="stats-grid"><article><strong>{{ stats.events }}</strong><span>Events</span></article><article><strong>{{ stats.published }}</strong><span>veröffentlicht</span></article><article><strong>{{ stats.items }}</strong><span>Artikel</span></article><article><strong>{{ stats.markers }}</strong><span>Planpunkte</span></article></section>
-<nav class="admin-nav"><a href="#events">Veranstaltungen</a><a href="#new-event">Neues Event</a></nav>
-<section class="panel admin-tools"><div><h2>Sicherung</h2><p>Alle Events, Preise und Pläne als ZIP herunterladen.</p><a class="button secondary" href="{{ url_for('backup') }}">Backup herunterladen</a></div><div><h2>Adminpasswort ändern</h2><form method="post" action="{{ url_for('change_password') }}" class="inline-form"><input type="password" name="password" minlength="12" required placeholder="Mindestens 12 Zeichen"><button>Passwort ändern</button></form></div></section>
-<section class="panel" id="events"><h2>Veranstaltungen</h2><div class="cards admin-cards">{% for event in events %}<a class="event-card" href="{{ url_for('edit_event',event_id=event.id) }}" style="--accent:{{ event.accent }}"><span class="dot"></span><div><h2>{{ event.title }}</h2><p>{{ event.item_count }} Artikel · {% if event.published %}<span class="status live">veröffentlicht</span>{% else %}<span class="status">Entwurf</span>{% endif %}</p><small>{{ event.date_text }}{% if event.location %} · {{ event.location }}{% endif %}</small></div><b>Verwalten →</b></a>{% else %}<div class="empty">Noch keine Veranstaltung vorhanden.</div>{% endfor %}</div></section>
-<section class="panel" id="new-event"><h2>Neue Veranstaltung</h2><form method="post" action="{{ url_for('create_event') }}" class="form-grid"><label>Titel<input name="title" required placeholder="Adventmarkt 2026"></label><label>Adresse<input name="slug" required pattern="[a-z0-9][a-z0-9-]*" placeholder="adventmarkt-2026"></label><label>Untertitel<input name="subtitle" placeholder="Punsch, Essen und Musik"></label><label>Datum<input name="date_text" placeholder="28.–29. November 2026"></label><label>Ort<input name="location" placeholder="Dorfplatz"></label><label>Farbe<input name="accent" type="color" value="#8b1e3f"></label><button>Event anlegen</button></form></section>
+{% extends "admin_base.html" %}
+{% set admin_page = 'overview' %}
+{% block title %}Verwaltung · Event-Preisliste{% endblock %}
+{% block admin_title %}Übersicht{% endblock %}
+{% block admin_subtitle %}Alle Veranstaltungen auf einen Blick{% endblock %}
+{% block admin_top_action %}<a class="button compact" href="#new-event">＋ Event anlegen</a>{% endblock %}
+{% block admin_content %}
+<div class="admin-heading">
+  <div><p class="eyebrow">Dashboard</p><h1>Guten Überblick.</h1><p>Hier verwaltest du Veranstaltungen, Preise, QR-Codes und Lagepläne.</p></div>
+  <a class="button" href="#new-event">＋ Neues Event</a>
+</div>
+<section class="stats-grid" aria-label="Statistik">
+  <article><span class="stat-icon green">▤</span><div><strong>{{ stats.events }}</strong><span>Events gesamt</span></div></article>
+  <article><span class="stat-icon blue">●</span><div><strong>{{ stats.published }}</strong><span>Online</span></div></article>
+  <article><span class="stat-icon amber">€</span><div><strong>{{ stats.items }}</strong><span>Artikel</span></div></article>
+  <article><span class="stat-icon violet">⌖</span><div><strong>{{ stats.markers }}</strong><span>Planpunkte</span></div></article>
+</section>
+<section class="admin-card" id="events">
+  <div class="section-head"><div><p class="eyebrow">Veranstaltungen</p><h2>Deine Events</h2></div><span class="count-pill">{{ events|length }}</span></div>
+  <div class="event-admin-list">
+    {% for event in events %}
+    <a href="{{ url_for('edit_event', event_id=event.id) }}" class="event-admin-row" style="--event-accent:{{ event.accent }}">
+      <span class="event-avatar">{{ event.title[:1]|upper }}</span><div class="event-info"><strong>{{ event.title }}</strong><span>{{ event.date_text or 'Datum noch offen' }}{% if event.location %} · {{ event.location }}{% endif %}</span></div>
+      <div class="event-meta"><span>{{ event.item_count }} Artikel</span><span class="status {{ 'live' if event.published else '' }}">{{ 'Online' if event.published else 'Entwurf' }}</span></div><span class="row-arrow">›</span>
+    </a>
+    {% else %}<div class="empty-state"><span>▤</span><h3>Noch keine Veranstaltung</h3><p>Lege dein erstes Event an. Danach kannst du Preise, Plan und QR-Code hinzufügen.</p><a class="button" href="#new-event">Erstes Event anlegen</a></div>{% endfor %}
+  </div>
+</section>
+<section class="admin-card" id="new-event">
+  <div class="section-head"><div><p class="eyebrow">Schnellstart</p><h2>Neue Veranstaltung</h2><p>Die Angaben können später jederzeit geändert werden.</p></div></div>
+  <form method="post" action="{{ url_for('create_event') }}" class="admin-form">
+    <div class="form-section"><h3>Grunddaten</h3><p>So wird das Event für Besucher angezeigt.</p></div>
+    <div class="form-fields two-col">
+      <label><span>Titel <b>*</b></span><input name="title" required maxlength="80" placeholder="Adventmarkt 2026" autocomplete="off"></label>
+      <label><span>Webadresse <b>*</b></span><div class="input-prefix"><span>/e/</span><input name="slug" required pattern="[a-z0-9][a-z0-9-]*" placeholder="adventmarkt-2026" autocomplete="off"></div><small>Nur Kleinbuchstaben, Zahlen und Bindestriche</small></label>
+      <label class="wide"><span>Untertitel</span><input name="subtitle" maxlength="160" placeholder="Punsch, Essen und Musik für die ganze Familie"></label>
+      <label><span>Datum</span><input name="date_text" maxlength="60" placeholder="28.–29. November 2026"></label><label><span>Ort</span><input name="location" maxlength="100" placeholder="Dorfplatz"></label>
+      <label class="color-field"><span>Eventfarbe</span><input name="accent" type="color" value="#8b1e3f"></label>
+    </div>
+    <div class="form-actions"><span>Mit <b>*</b> markierte Felder sind erforderlich.</span><button type="submit">Event anlegen</button></div>
+  </form>
+</section>
+<section class="settings-grid" id="settings">
+  <article class="admin-card"><span class="setting-icon">↓</span><div><h2>Backup</h2><p>Alle Events, Preise und Pläne als ZIP-Datei sichern.</p><a class="button secondary" href="{{ url_for('backup') }}">Backup herunterladen</a></div></article>
+  <article class="admin-card"><span class="setting-icon">⌘</span><div><h2>Adminpasswort</h2><p>Verwende mindestens 12 Zeichen und ein einzigartiges Passwort.</p><form method="post" action="{{ url_for('change_password') }}" class="password-form"><input type="password" name="password" minlength="12" required placeholder="Neues Passwort" autocomplete="new-password"><button type="submit" class="secondary">Ändern</button></form></div></article>
+</section>
 {% endblock %}

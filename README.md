@@ -4,7 +4,7 @@
 
 Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehrfeste, Vereinsfeste und andere Veranstaltungen. Für jedes Event wird eine eigene öffentliche Seite mit QR-Code erzeugt.
 
-**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.2/Apps/EventPreisliste/docker-compose.yml)**
+**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.0/Apps/EventPreisliste/docker-compose.yml)**
 
 ## Ein Blick in die App
 
@@ -13,7 +13,10 @@ Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehr
 Die Handyansicht zeigt die Angebote für Gäste. Im Admin-Panel können Veranstalter Preise und Kennzeichnungen bearbeiten. Beide Aufnahmen zeigen Beispieldaten.
 
 <a href="docs/screenshots/handy.png"><img src="docs/screenshots/handy.png" width="215" alt="Preisliste des Adventmarkts auf dem Handy"></a>
-<a href="docs/screenshots/verwaltung.png"><img src="docs/screenshots/verwaltung.png" width="580" alt="Preisverwaltung mit geöffnetem Artikeleditor"></a>
+<a href="docs/screenshots/verwaltung.png"><img src="docs/screenshots/verwaltung.png" width="580" alt="Professionelles Verwaltungs-Dashboard"></a>
+<a href="docs/screenshots/verwaltung-handy.png"><img src="docs/screenshots/verwaltung-handy.png" width="220" alt="Verwaltung auf dem Handy"></a>
+
+<a href="docs/screenshots/event-bearbeiten.png"><img src="docs/screenshots/event-bearbeiten.png" width="800" alt="Event, Preisliste, Plan und QR-Code bearbeiten"></a>
 
 ## Funktionen
 

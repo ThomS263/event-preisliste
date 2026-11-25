@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block body_class %}admin-body{% endblock %}
+{% block site_header %}{% endblock %}
+{% block main_class %}admin-main{% endblock %}
+{% block content %}
+<div class="admin-shell" data-admin-shell>
+  <aside class="admin-sidebar" id="admin-sidebar">
+    <a class="admin-brand" href="{{ url_for('admin') }}"><img src="{{ url_for('static', filename='logo.svg') }}" width="42" height="42" alt=""><span><strong>Event-Preisliste</strong><small>Verwaltung</small></span></a>
+    <nav class="side-nav" aria-label="Verwaltung">
+      <a class="{% if admin_page == 'overview' %}active{% endif %}" href="{{ url_for('admin') }}"><span>⌂</span>Übersicht</a>
+      {% if event %}<p>Dieses Event</p><a href="#eventdaten"><span>✎</span>Eventdaten</a><a href="#preise"><span>€</span>Preisliste</a><a href="#plan"><span>⌖</span>Plan</a><a href="#qr"><span>▦</span>QR-Code</a>
+      {% else %}<a href="#events"><span>▤</span>Veranstaltungen</a><a href="#new-event"><span>＋</span>Neues Event</a><a href="#settings"><span>⚙</span>Sicherheit &amp; Backup</a>{% endif %}
+    </nav>
+    <div class="sidebar-footer"><a href="{{ url_for('home') }}" target="_blank" rel="noopener"><span>↗</span>Öffentliche Seite</a><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span>⇥</span>Abmelden</button></form></div>
+  </aside>
+  <div class="admin-scrim" data-admin-close></div>
+  <section class="admin-workspace">
+    <header class="admin-topbar"><button class="menu-button" type="button" data-admin-menu aria-controls="admin-sidebar" aria-expanded="false" aria-label="Menü öffnen">☰</button><div><strong>{% block admin_title %}Verwaltung{% endblock %}</strong><small>{% block admin_subtitle %}Event-Preisliste{% endblock %}</small></div>{% block admin_top_action %}<a class="icon-button" href="{{ url_for('home') }}" target="_blank" rel="noopener" title="Öffentliche Seite öffnen">↗</a>{% endblock %}</header>
+    <div class="admin-content">{% block admin_content %}{% endblock %}</div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='admin.js') }}" defer></script>{% block admin_scripts %}{% endblock %}{% endblock %}

@@ -2,7 +2,7 @@
 
 ## Einfache Installation über die Oberfläche
 
-1. Die [CasaOS-Importdatei](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.2/Apps/EventPreisliste/docker-compose.yml) öffnen und den gesamten Inhalt kopieren.
+1. Die [CasaOS-Importdatei](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.0/Apps/EventPreisliste/docker-compose.yml) öffnen und den gesamten Inhalt kopieren.
 2. In CasaOS **App Store → Custom Install** öffnen.
 3. Oben rechts **Import** wählen, den YAML-Inhalt einfügen und bestätigen.
 4. Optional unter den Umgebungsvariablen ein eigenes `EVENT_ADMIN_PASSWORD` und eine externe HTTPS-Adresse als `EVENT_PUBLIC_URL` eintragen.
