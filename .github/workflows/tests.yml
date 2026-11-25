@@ -15,4 +15,10 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt -e .
       - run: python -m pytest -q
-      - run: docker build -t event-preisliste:test .
+      - name: Start Compose on the documented host port
+        run: |
+          docker compose up -d --build --wait --wait-timeout 90
+          curl -fsS http://127.0.0.1:8090/health
+          curl -fsS http://127.0.0.1:8090/static/logo.svg > /dev/null
+      - if: failure()
+        run: docker compose logs --tail 100

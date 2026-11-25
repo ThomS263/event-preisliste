@@ -403,7 +403,7 @@ def create_app(test_config=None):
             for path in map_dir.glob("event-*"):
                 if path.is_file():
                     archive.write(path, f"maps/{path.name}")
-            archive.writestr("backup.json", json.dumps({"version": "0.4.0", "created": int(time.time())}))
+            archive.writestr("backup.json", json.dumps({"version": "0.4.1", "created": int(time.time())}))
         output.seek(0)
         return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"event-preisliste-{time.strftime('%Y%m%d')}.zip")
 
@@ -425,7 +425,11 @@ def create_app(test_config=None):
 
     @app.get("/manifest.webmanifest")
     def manifest():
-        return {"name": "Event-Preisliste", "short_name": "Preisliste", "start_url": "/", "display": "standalone", "background_color": "#f7f4ed", "theme_color": "#17332c", "icons": []}, 200, {"Content-Type": "application/manifest+json"}
+        return {
+            "name": "Event-Preisliste", "short_name": "Preisliste", "start_url": "/",
+            "display": "standalone", "background_color": "#f7f4ed", "theme_color": "#17332c",
+            "icons": [{"src": url_for("static", filename="logo.svg"), "sizes": "any", "type": "image/svg+xml"}],
+        }, 200, {"Content-Type": "application/manifest+json"}
 
     @app.get("/service-worker.js")
     def service_worker():
@@ -490,6 +494,6 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "version": "0.4.0"}
+        return {"ok": True, "version": "0.4.1"}
 
     return app

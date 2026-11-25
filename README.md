@@ -1,8 +1,19 @@
+<img src="event_preisliste/static/logo.svg" width="80" alt="">
+
 # Event-Preisliste
 
 Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehrfeste, Vereinsfeste und andere Veranstaltungen. Für jedes Event wird eine eigene öffentliche Seite mit QR-Code erzeugt.
 
-**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.0/Apps/EventPreisliste/docker-compose.yml)**
+**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.1/Apps/EventPreisliste/docker-compose.yml)**
+
+## Ein Blick in die App
+
+![Veranstaltungsübersicht mit Adventmarkt und Feuerwehrfest](docs/screenshots/veranstaltungen.png)
+
+Die Handyansicht zeigt die Angebote für Gäste. Im Admin-Panel können Veranstalter Preise und Kennzeichnungen bearbeiten. Beide Aufnahmen zeigen Beispieldaten.
+
+<a href="docs/screenshots/handy.png"><img src="docs/screenshots/handy.png" width="215" alt="Preisliste des Adventmarkts auf dem Handy"></a>
+<a href="docs/screenshots/verwaltung.png"><img src="docs/screenshots/verwaltung.png" width="580" alt="Preisverwaltung mit geöffnetem Artikeleditor"></a>
 
 ## Funktionen
 
@@ -32,7 +43,7 @@ cp .env.example .env
 docker compose up -d --build --wait
 ```
 
-Danach `http://SERVER-IP:8080/admin/login` öffnen, anmelden und das erste Event erstellen. Für korrekte QR-Codes außerhalb des Heimnetzes in `.env` eine erreichbare HTTPS-Adresse als `EVENT_PUBLIC_URL` eintragen.
+Danach `http://SERVER-IP:8090/admin/login` öffnen, anmelden und das erste Event erstellen. Der Host-Port lässt sich über `EVENT_PORT` in `.env` ändern. Für korrekte QR-Codes außerhalb des Heimnetzes in `.env` eine erreichbare HTTPS-Adresse als `EVENT_PUBLIC_URL` eintragen.
 
 ## Aktualisieren
 

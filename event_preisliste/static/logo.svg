@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <title>Event-Preisliste</title>
+  <rect width="96" height="96" rx="21" fill="#17332c"/>
+  <path d="M22 39v31h40" fill="none" stroke="#fff2d5" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M17 36l8-17h41l9 17v4a7 7 0 0 1-14 0 7 7 0 0 1-15 0 7 7 0 0 1-15 0 7 7 0 0 1-14 0z" fill="#fff2d5"/>
+  <path d="M31 36l5-17h10v21a7.5 7.5 0 0 1-15 0zm30 0-5-17h10l9 17v4a7 7 0 0 1-14 0z" fill="#f29b73"/>
+  <path d="M55 48h15l14 14a3 3 0 0 1 0 4L71 79a3 3 0 0 1-4 0L53 65V50z" fill="#ffd279" stroke="#17332c" stroke-width="3"/>
+  <circle cx="61" cy="56" r="2.8" fill="#17332c"/>
+</svg>

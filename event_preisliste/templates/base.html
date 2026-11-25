@@ -5,13 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}Event-Preisliste{% endblock %}</title>
   <meta name="theme-color" content="#17332c">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='extras.css') }}">
 </head>
 <body>
-<header><a class="brand" href="{{ url_for('home') }}">Event-Preisliste</a>{% if session.admin %}<a href="{{ url_for('admin') }}">Verwaltung</a>{% endif %}</header>
+<header>
+  <a class="brand" href="{{ url_for('home') }}">
+    <img src="{{ url_for('static', filename='logo.svg') }}" width="36" height="36" alt="">Event-Preisliste
+  </a>
+  {% if session.admin %}<a href="{{ url_for('admin') }}">Verwaltung</a>{% endif %}
+</header>
 <main>
   {% for category,message in get_flashed_messages(with_categories=true) %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
   {% block content %}{% endblock %}
