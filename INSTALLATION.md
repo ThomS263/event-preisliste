@@ -2,7 +2,7 @@
 
 ## Einfache Installation über die Oberfläche
 
-1. Die [CasaOS-Importdatei](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.1/Apps/EventPreisliste/docker-compose.yml) öffnen und den gesamten Inhalt kopieren.
+1. Die [CasaOS-Importdatei](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.2/Apps/EventPreisliste/docker-compose.yml) öffnen und den gesamten Inhalt kopieren.
 2. In CasaOS **App Store → Custom Install** öffnen.
 3. Oben rechts **Import** wählen, den YAML-Inhalt einfügen und bestätigen.
 4. Optional unter den Umgebungsvariablen ein eigenes `EVENT_ADMIN_PASSWORD` und eine externe HTTPS-Adresse als `EVENT_PUBLIC_URL` eintragen.
@@ -18,7 +18,7 @@ docker exec event-preisliste cat /data/.initial-admin-password
 
 ## Wenn ein Host-Port belegt ist
 
-Beim Start aus einem Git-Checkout gilt der Host-Port aus der lokalen `.env`. Falls Docker `Bind for 0.0.0.0:8080 failed: port is already allocated` meldet, öffne `.env` im Projektordner und setze `EVENT_PORT=8090`. Ist auch 8090 belegt, wähle einen freien Host-Port. Mit `docker compose up -d --wait` übernimmt Docker die Änderung. Öffne anschließend `http://SERVER-IP:8090/admin/login` beziehungsweise die Adresse mit deinem gewählten Port.
+Beim Start aus einem Git-Checkout verwendet die Compose-Datei fest den Host-Port 8090. Falls Docker noch `Bind for 0.0.0.0:8080 failed: port is already allocated` meldet, ist die lokale Compose-Datei veraltet. Führe `git pull --ff-only origin main` aus und starte den Container erneut. Ist auch 8090 belegt, ändere in `compose.yaml` links vom Doppelpunkt `8090` auf einen freien Host-Port. Öffne anschließend `http://SERVER-IP:8090/admin/login` beziehungsweise die Adresse mit deinem gewählten Port.
 
 ## Daten und Sicherung
 

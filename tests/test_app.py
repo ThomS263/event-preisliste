@@ -100,11 +100,10 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.4.1"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.4.2"
     assert service["ports"][0]["published"] == "8090"
     compose = yaml.safe_load(Path("compose.yaml").read_text())
-    assert compose["services"]["event-preisliste"]["ports"] == ["${EVENT_PORT:-8090}:8080"]
-    assert "EVENT_PORT=8090" in Path(".env.example").read_text().splitlines()
+    assert compose["services"]["event-preisliste"]["ports"] == ["8090:8080"]
     assert service["volumes"][0]["target"] == "/data"
     assert manifest["x-casaos"]["main"] == "event-preisliste"
 

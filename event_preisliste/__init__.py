@@ -403,7 +403,7 @@ def create_app(test_config=None):
             for path in map_dir.glob("event-*"):
                 if path.is_file():
                     archive.write(path, f"maps/{path.name}")
-            archive.writestr("backup.json", json.dumps({"version": "0.4.1", "created": int(time.time())}))
+            archive.writestr("backup.json", json.dumps({"version": "0.4.2", "created": int(time.time())}))
         output.seek(0)
         return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"event-preisliste-{time.strftime('%Y%m%d')}.zip")
 
@@ -494,6 +494,6 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "version": "0.4.1"}
+        return {"ok": True, "version": "0.4.2"}
 
     return app

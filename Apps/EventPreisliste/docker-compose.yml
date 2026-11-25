@@ -1,7 +1,7 @@
 name: event-preisliste
 services:
   event-preisliste:
-    image: ghcr.io/thoms263/event-preisliste:0.4.1
+    image: ghcr.io/thoms263/event-preisliste:0.4.2
     container_name: event-preisliste
     restart: unless-stopped
     security_opt:
@@ -69,17 +69,17 @@ x-casaos:
   category: Utilities
   author: ThomS263
   developer: ThomS263
-  version: "0.4.1"
+  version: "0.4.2"
   update_at: "2026-11-25"
   website: https://github.com/ThomS263/event-preisliste
   repo: https://github.com/ThomS263/event-preisliste
   support: https://github.com/ThomS263/event-preisliste/issues
   docs: https://github.com/ThomS263/event-preisliste/blob/main/INSTALLATION.md
-  icon: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.1/Apps/EventPreisliste/icon.png
-  thumbnail: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.1/docs/screenshots/veranstaltungen.png
+  icon: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.2/Apps/EventPreisliste/icon.png
+  thumbnail: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.2/docs/screenshots/veranstaltungen.png
   screenshot_link:
-    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.1/docs/screenshots/handy.png
-    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.1/docs/screenshots/verwaltung.png
+    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.2/docs/screenshots/handy.png
+    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.2/docs/screenshots/verwaltung.png
   tips:
     before_install:
       en_US: Set an admin password or leave it empty and read /data/.initial-admin-password from the container after installation. Port 8090 avoids conflicts with other apps.
