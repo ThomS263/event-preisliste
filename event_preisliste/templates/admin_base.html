@@ -11,7 +11,7 @@
       {% if event %}<p>Dieses Event</p><a href="#eventdaten"><span>✎</span>Eventdaten</a><a href="#preise"><span>€</span>Preisliste</a><a href="#plan"><span>⌖</span>Plan</a><a href="#qr"><span>▦</span>QR-Code</a>
       {% else %}<a href="#events"><span>▤</span>Veranstaltungen</a><a href="#new-event"><span>＋</span>Neues Event</a><a href="#settings"><span>⚙</span>Sicherheit &amp; Backup</a>{% endif %}
     </nav>
-    <div class="sidebar-footer"><a href="{{ url_for('home') }}" target="_blank" rel="noopener"><span>↗</span>Öffentliche Seite</a><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span>⇥</span>Abmelden</button></form></div>
+    <div class="sidebar-footer"><small>Version {{ app_version }}</small><a href="{{ url_for('home') }}" target="_blank" rel="noopener"><span>↗</span>Öffentliche Seite</a><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span>⇥</span>Abmelden</button></form></div>
   </aside>
   <div class="admin-scrim" data-admin-close></div>
   <section class="admin-workspace">

@@ -100,7 +100,8 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.5.0"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.5.1"
+    assert service["pull_policy"] == "always"
     assert service["ports"][0]["published"] == "8090"
     compose = yaml.safe_load(Path("compose.yaml").read_text())
     assert compose["services"]["event-preisliste"]["ports"] == ["8090:8080"]
@@ -131,3 +132,16 @@ def test_password_change_and_login_rate_limit(tmp_path):
     for _ in range(10):
         other.post("/admin/login", data={"password": "falsch"})
     assert other.post("/admin/login", data={"password": "falsch"}).status_code == 429
+
+
+def test_first_run_setup(tmp_path, monkeypatch):
+    monkeypatch.delenv("EVENT_ADMIN_PASSWORD", raising=False)
+    first_run = create_app({"TESTING": True, "DATA_DIR": tmp_path})
+    client = first_run.test_client()
+    assert client.get("/admin/login").location.endswith("/admin/setup")
+    assert client.post("/admin/setup", data={"password": "zu-kurz", "confirmation": "zu-kurz"}).status_code == 200
+    response = client.post("/admin/setup", data={
+        "password": "sicheres-passwort-2026", "confirmation": "sicheres-passwort-2026",
+    })
+    assert response.location.endswith("/admin")
+    assert (tmp_path / ".admin-password-hash").is_file()

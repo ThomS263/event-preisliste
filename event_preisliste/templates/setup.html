@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Ersteinrichtung · Event-Preisliste{% endblock %}
+{% block content %}
+<section class="panel narrow setup-panel">
+  <div class="setup-icon"><img src="{{ url_for('static', filename='logo.svg') }}" width="64" height="64" alt=""></div>
+  <p class="eyebrow">Erster Start</p>
+  <h1>Verwaltung einrichten</h1>
+  <p>Lege dein persönliches Adminpasswort fest. Damit schützt du Events, Preise und Pläne.</p>
+  <form method="post" class="setup-form">
+    <label>Adminpasswort<input name="password" type="password" minlength="12" required autocomplete="new-password" placeholder="Mindestens 12 Zeichen"></label>
+    <label>Passwort wiederholen<input name="confirmation" type="password" minlength="12" required autocomplete="new-password" placeholder="Noch einmal eingeben"></label>
+    <button type="submit">Einrichtung abschließen</button>
+  </form>
+  <small class="setup-note">Das Passwort bleibt ausschließlich auf deinem Server gespeichert.</small>
+</section>
+{% endblock %}

@@ -1,7 +1,8 @@
 name: event-preisliste
 services:
   event-preisliste:
-    image: ghcr.io/thoms263/event-preisliste:0.5.0
+    image: ghcr.io/thoms263/event-preisliste:0.5.1
+    pull_policy: always
     container_name: event-preisliste
     restart: unless-stopped
     security_opt:
@@ -26,7 +27,6 @@ services:
         target: /data
     environment:
       EVENT_DATA_DIR: /data
-      EVENT_ADMIN_PASSWORD: ""
       EVENT_PUBLIC_URL: ""
     x-casaos:
       ports:
@@ -40,10 +40,6 @@ services:
             en_US: Events, prices, maps and settings
             de_DE: Events, Preise, Pläne und Einstellungen
       envs:
-        - container: EVENT_ADMIN_PASSWORD
-          description:
-            en_US: Optional initial admin password; generated automatically when empty
-            de_DE: Optionales Erstpasswort; wird bei leerem Feld automatisch erzeugt
         - container: EVENT_PUBLIC_URL
           description:
             en_US: Optional external HTTPS address used in QR codes
@@ -66,22 +62,25 @@ x-casaos:
   description:
     en_US: Create mobile price lists for markets, festivals and club events. Each event has its own QR code, categorized products and an interactive map with stands, entrances, toilets and first aid.
     de_DE: Erstelle mobile Preislisten für Adventmärkte, Feuerwehrfeste und Vereinsveranstaltungen. Jedes Event erhält einen eigenen QR-Code, kategorisierte Angebote und einen interaktiven Plan mit Ständen, Eingängen, WC und Erster Hilfe.
-  category: Utilities
+  category: Others
   author: ThomS263
   developer: ThomS263
-  version: "0.5.0"
+  version: "0.5.1"
   update_at: "2026-11-25"
   website: https://github.com/ThomS263/event-preisliste
   repo: https://github.com/ThomS263/event-preisliste
   support: https://github.com/ThomS263/event-preisliste/issues
   docs: https://github.com/ThomS263/event-preisliste/blob/main/INSTALLATION.md
-  icon: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.0/Apps/EventPreisliste/icon.png
-  thumbnail: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.0/docs/screenshots/veranstaltungen.png
+  icon: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.1/Apps/EventPreisliste/icon.png
+  thumbnail: https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.1/docs/screenshots/veranstaltungen.png
   screenshot_link:
-    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.0/docs/screenshots/handy.png
-    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.0/docs/screenshots/verwaltung.png
-    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.0/docs/screenshots/verwaltung-handy.png
+    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.1/docs/screenshots/handy.png
+    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.1/docs/screenshots/verwaltung.png
+    - https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.1/docs/screenshots/verwaltung-handy.png
+  release_notes:
+    en_US: Easier CasaOS setup with a secure first-run password wizard, clearer updates and refreshed app metadata.
+    de_DE: Einfachere CasaOS-Einrichtung mit sicherem Passwort-Assistenten beim ersten Start, klareren Updates und verbesserten App-Metadaten.
   tips:
     before_install:
-      en_US: Set an admin password or leave it empty and read /data/.initial-admin-password from the container after installation. Port 8090 avoids conflicts with other apps.
-      de_DE: Setze ein Adminpasswort oder lasse das Feld leer und lies nach der Installation /data/.initial-admin-password im Container. Port 8090 vermeidet Konflikte mit anderen Apps.
+      en_US: After installation, open the app tile and choose your admin password. Port 8090 avoids conflicts with other apps.
+      de_DE: Öffne nach der Installation die App-Kachel und lege dein Adminpasswort fest. Port 8090 vermeidet Konflikte mit anderen Apps.

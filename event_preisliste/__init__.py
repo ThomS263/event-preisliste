@@ -20,6 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
+APP_VERSION = "0.5.1"
 
 
 def create_app(test_config=None):
@@ -40,19 +41,21 @@ def create_app(test_config=None):
     password_file = data_dir / ".initial-admin-password"
     password_hash_file = data_dir / ".admin-password-hash"
     admin_password = os.environ.get("EVENT_ADMIN_PASSWORD", "").strip()
+    needs_setup = False
     if password_hash_file.exists():
         admin_password = password_hash_file.read_text().strip()
+    elif not admin_password and password_file.exists():
+        # Backwards compatibility for installations created before v0.5.1.
+        admin_password = password_file.read_text().strip()
+    elif not admin_password and test_config and test_config.get("ADMIN_PASSWORD"):
+        admin_password = test_config["ADMIN_PASSWORD"]
     elif not admin_password:
-        if password_file.exists():
-            admin_password = password_file.read_text().strip()
-        else:
-            admin_password = secrets.token_urlsafe(18)
-            password_file.write_text(admin_password)
-            password_file.chmod(0o600)
+        needs_setup = True
     app.secret_key = secret
     app.config.update(
         DATABASE=str(data_dir / "events.sqlite3"),
         ADMIN_PASSWORD=admin_password,
+        NEEDS_SETUP=needs_setup,
         PUBLIC_URL=os.environ.get("EVENT_PUBLIC_URL", "").rstrip("/"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -61,6 +64,22 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
     login_attempts = defaultdict(deque)
+
+    @app.context_processor
+    def app_metadata():
+        return {"app_version": APP_VERSION}
+
+    def refresh_password_state():
+        """Synchronize first-run setup across all Gunicorn workers."""
+        if app.config["NEEDS_SETUP"] and password_hash_file.exists():
+            app.config["ADMIN_PASSWORD"] = password_hash_file.read_text().strip()
+            app.config["NEEDS_SETUP"] = False
+
+    def write_admin_hash(hashed):
+        temporary = data_dir / f".admin-password-{secrets.token_hex(6)}.tmp"
+        temporary.write_text(hashed)
+        temporary.chmod(0o600)
+        os.replace(temporary, password_hash_file)
 
     def db():
         connection = sqlite3.connect(app.config["DATABASE"])
@@ -174,6 +193,9 @@ def create_app(test_config=None):
 
     @app.route("/admin/login", methods=["GET", "POST"])
     def login():
+        refresh_password_state()
+        if app.config["NEEDS_SETUP"]:
+            return redirect(url_for("setup"))
         if request.method == "POST":
             key = request.remote_addr or "unknown"
             queue = login_attempts[key]
@@ -194,6 +216,29 @@ def create_app(test_config=None):
             queue.append(now)
             flash("Passwort falsch.", "error")
         return render_template("login.html")
+
+    @app.route("/admin/setup", methods=["GET", "POST"])
+    def setup():
+        refresh_password_state()
+        if not app.config["NEEDS_SETUP"]:
+            return redirect(url_for("admin") if session.get("admin") else url_for("login"))
+        if request.method == "POST":
+            password = request.form.get("password", "")
+            confirmation = request.form.get("confirmation", "")
+            if len(password) < 12:
+                flash("Das Passwort muss mindestens 12 Zeichen haben.", "error")
+            elif password != confirmation:
+                flash("Die beiden Passwörter stimmen nicht überein.", "error")
+            else:
+                hashed = generate_password_hash(password)
+                write_admin_hash(hashed)
+                app.config["ADMIN_PASSWORD"] = hashed
+                app.config["NEEDS_SETUP"] = False
+                session.clear()
+                session["admin"] = True
+                flash("Die Einrichtung ist abgeschlossen.", "success")
+                return redirect(url_for("admin"))
+        return render_template("setup.html")
 
     @app.post("/admin/logout")
     def logout():
@@ -403,7 +448,7 @@ def create_app(test_config=None):
             for path in map_dir.glob("event-*"):
                 if path.is_file():
                     archive.write(path, f"maps/{path.name}")
-            archive.writestr("backup.json", json.dumps({"version": "0.5.0", "created": int(time.time())}))
+            archive.writestr("backup.json", json.dumps({"version": APP_VERSION, "created": int(time.time())}))
         output.seek(0)
         return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"event-preisliste-{time.strftime('%Y%m%d')}.zip")
 
@@ -415,8 +460,7 @@ def create_app(test_config=None):
             flash("Das neue Passwort muss mindestens 12 Zeichen haben.", "error")
         else:
             hashed = generate_password_hash(new_password)
-            password_hash_file.write_text(hashed)
-            password_hash_file.chmod(0o600)
+            write_admin_hash(hashed)
             app.config["ADMIN_PASSWORD"] = hashed
             session.clear()
             flash("Passwort geändert. Bitte neu anmelden.", "success")
@@ -494,6 +538,6 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "version": "0.5.0"}
+        return {"ok": True, "version": APP_VERSION}
 
     return app

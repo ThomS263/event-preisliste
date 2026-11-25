@@ -25,6 +25,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 86px; }
 .side-nav a.active { box-shadow: inset 3px 0 #50b797; }
 .side-nav a.active span { color: #73d2b5; }
 .sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid #ffffff14; }
+.sidebar-footer > small { display: block; padding: 0 12px 8px; color: #78988f; font-size: .7rem; }
 .sidebar-footer form { margin: 2px 0 0; }
 .admin-workspace { min-width: 0; }
 .admin-topbar { position: sticky; top: 0; z-index: 20; height: 70px; display: flex; align-items: center; gap: 14px; padding: 0 34px; border-bottom: 1px solid #dfe6e2; background: #fffffff2; backdrop-filter: blur(12px); }
