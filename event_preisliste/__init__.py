@@ -32,10 +32,19 @@ def create_app(test_config=None):
         secret = secrets.token_hex(32)
         secret_file.write_text(secret)
         secret_file.chmod(0o600)
+    password_file = data_dir / ".initial-admin-password"
+    admin_password = os.environ.get("EVENT_ADMIN_PASSWORD", "").strip()
+    if not admin_password:
+        if password_file.exists():
+            admin_password = password_file.read_text().strip()
+        else:
+            admin_password = secrets.token_urlsafe(18)
+            password_file.write_text(admin_password)
+            password_file.chmod(0o600)
     app.secret_key = secret
     app.config.update(
         DATABASE=str(data_dir / "events.sqlite3"),
-        ADMIN_PASSWORD=os.environ.get("EVENT_ADMIN_PASSWORD", "change-me-now"),
+        ADMIN_PASSWORD=admin_password,
         PUBLIC_URL=os.environ.get("EVENT_PUBLIC_URL", "").rstrip("/"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",

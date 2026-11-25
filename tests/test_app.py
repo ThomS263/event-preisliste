@@ -1,6 +1,8 @@
 import io
+from pathlib import Path
 
 from PIL import Image
+import yaml
 
 from event_preisliste import create_app
 
@@ -93,3 +95,12 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
     assert "Ausverkauft" in page
     assert "vegetarisch" in page
     assert "Allergene: A, C" in page
+
+
+def test_casaos_manifest_is_installable():
+    manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
+    service = manifest["services"]["event-preisliste"]
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.3.0"
+    assert service["ports"][0]["published"] == "8090"
+    assert service["volumes"][0]["target"] == "/data"
+    assert manifest["x-casaos"]["main"] == "event-preisliste"

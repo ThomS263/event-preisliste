@@ -2,6 +2,8 @@
 
 Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehrfeste, Vereinsfeste und andere Veranstaltungen. Für jedes Event wird eine eigene öffentliche Seite mit QR-Code erzeugt.
 
+**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.3.0/Apps/EventPreisliste/docker-compose.yml)**
+
 ## Funktionen
 
 - mehrere Veranstaltungen getrennt verwalten
@@ -37,6 +39,10 @@ docker compose up -d --build --wait
 ```
 
 Die Daten liegen im lokalen Verzeichnis `data/` und bleiben bei Updates erhalten. Vor Updates diesen Ordner sichern.
+
+## CasaOS
+
+Die fertige CasaOS-Konfiguration verwendet das veröffentlichte Multi-Arch-Image für AMD64 und ARM64. Sie legt eine App-Kachel auf Port 8090 an und speichert alle Daten dauerhaft unter `/DATA/AppData/event-preisliste/data`. Die genaue Schritt-für-Schritt-Anleitung steht in [INSTALLATION.md](INSTALLATION.md).
 
 ## Entwicklung und Tests
 

@@ -16,5 +16,8 @@ dependencies = [
 [tool.setuptools.package-data]
 event_preisliste = ["templates/*.html", "static/*.css", "static/*.js"]
 
+[tool.setuptools]
+packages = ["event_preisliste"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
