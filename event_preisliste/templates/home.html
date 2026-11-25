@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Veranstaltungen{% endblock %}
+{% block content %}
+<section class="hero"><p class="eyebrow">Aktuelle Veranstaltungen</p><h1>Was gibt es heute?</h1><p>Event auswählen und Preise direkt am Handy ansehen.</p></section>
+<section class="cards">
+{% for event in events %}<a class="event-card" href="{{ url_for('event_page',slug=event.slug) }}" style="--accent:{{ event.accent }}"><span class="dot"></span><div><h2>{{ event.title }}</h2><p>{{ event.subtitle }}</p><small>{{ event.date_text }}{% if event.location %} · {{ event.location }}{% endif %}</small></div><b>→</b></a>
+{% else %}<div class="empty">Derzeit ist keine Veranstaltung veröffentlicht.</div>{% endfor %}
+</section>
+{% endblock %}

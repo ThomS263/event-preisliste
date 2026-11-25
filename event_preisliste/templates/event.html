@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}{{ event.title }} – Preise{% endblock %}
+{% block content %}
+<section class="event-head" style="--accent:{{ event.accent }}"><p class="eyebrow">Preisliste</p><h1>{{ event.title }}</h1><p>{{ event.subtitle }}</p><small>{{ event.date_text }}{% if event.location %} · {{ event.location }}{% endif %}</small></section>
+{% for category,items in groups.items() %}<section class="price-section"><h2>{{ category }}</h2><div class="price-list">{% for item in items %}<article><div><h3>{{ item.name }}</h3>{% if item.description %}<p>{{ item.description }}</p>{% endif %}</div><strong>{{ '%.2f'|format(item.price_cents / 100) }} €</strong></article>{% endfor %}</div></section>{% else %}<div class="empty">Die Preisliste wird gerade vorbereitet.</div>{% endfor %}
+{% endblock %}
