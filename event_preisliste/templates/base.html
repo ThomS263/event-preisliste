@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}Event-Preisliste{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
 </head>
 <body>
 <header><a class="brand" href="{{ url_for('home') }}">Event-Preisliste</a>{% if session.admin %}<a href="{{ url_for('admin') }}">Verwaltung</a>{% endif %}</header>

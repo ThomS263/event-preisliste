@@ -73,6 +73,15 @@ def create_app(test_config=None):
         columns = {row["name"] for row in con.execute("PRAGMA table_info(events)")}
         if "map_filename" not in columns:
             con.execute("ALTER TABLE events ADD COLUMN map_filename TEXT NOT NULL DEFAULT ''")
+        if "opening_hours" not in columns:
+            con.execute("ALTER TABLE events ADD COLUMN opening_hours TEXT NOT NULL DEFAULT ''")
+        item_columns = {row["name"] for row in con.execute("PRAGMA table_info(items)")}
+        if "labels" not in item_columns:
+            con.execute("ALTER TABLE items ADD COLUMN labels TEXT NOT NULL DEFAULT ''")
+        if "allergens" not in item_columns:
+            con.execute("ALTER TABLE items ADD COLUMN allergens TEXT NOT NULL DEFAULT ''")
+        if "sold_out" not in item_columns:
+            con.execute("ALTER TABLE items ADD COLUMN sold_out INTEGER NOT NULL DEFAULT 0")
 
     def admin_required():
         if not session.get("admin"):
@@ -162,7 +171,8 @@ def create_app(test_config=None):
         admin_required()
         with db() as con:
             events = con.execute("SELECT e.*,COUNT(i.id) item_count FROM events e LEFT JOIN items i ON i.event_id=e.id GROUP BY e.id ORDER BY e.id DESC").fetchall()
-        return render_template("admin.html", events=events)
+            stats = con.execute("SELECT COUNT(*) events,(SELECT COUNT(*) FROM events WHERE published=1) published,(SELECT COUNT(*) FROM items) items,(SELECT COUNT(*) FROM map_markers) markers FROM events").fetchone()
+        return render_template("admin.html", events=events, stats=stats)
 
     @app.post("/admin/events")
     def create_event():
@@ -277,6 +287,25 @@ def create_app(test_config=None):
             con.execute("UPDATE events SET published=1-published WHERE id=?", (event_id,))
         return redirect(url_for("edit_event", event_id=event_id))
 
+    @app.post("/admin/events/<int:event_id>/update")
+    def update_event(event_id):
+        admin_required()
+        title = request.form.get("title", "").strip()[:80]
+        accent = request.form.get("accent", "#8b1e3f")
+        if not title:
+            flash("Der Eventtitel darf nicht leer sein.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
+            accent = "#8b1e3f"
+        with db() as con:
+            result = con.execute("UPDATE events SET title=?,subtitle=?,date_text=?,location=?,opening_hours=?,accent=? WHERE id=?", (
+                title, request.form.get("subtitle", "").strip()[:160], request.form.get("date_text", "").strip()[:60],
+                request.form.get("location", "").strip()[:100], request.form.get("opening_hours", "").strip()[:180], accent, event_id))
+            if not result.rowcount:
+                abort(404)
+        flash("Eventdaten wurden gespeichert.", "success")
+        return redirect(url_for("edit_event", event_id=event_id))
+
     @app.post("/admin/events/<int:event_id>/items")
     def add_item(event_id):
         admin_required()
@@ -295,9 +324,35 @@ def create_app(test_config=None):
         with db() as con:
             if not con.execute("SELECT 1 FROM events WHERE id=?", (event_id,)).fetchone():
                 abort(404)
-            con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order) VALUES(?,?,?,?,?,?)", (
+            con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,labels,allergens) VALUES(?,?,?,?,?,?,?,?)", (
                 event_id, request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
-                request.form.get("description", "").strip()[:180], cents, int(request.form.get("sort_order", 0) or 0)))
+                request.form.get("description", "").strip()[:180], cents, int(request.form.get("sort_order", 0) or 0),
+                request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100]))
+        return redirect(url_for("edit_event", event_id=event_id))
+
+    @app.post("/admin/events/<int:event_id>/items/<int:item_id>/update")
+    def update_item(event_id, item_id):
+        admin_required()
+        name = request.form.get("name", "").strip()[:100]
+        try:
+            cents = int((Decimal(request.form.get("price", "").replace(",", ".")) * 100).quantize(Decimal("1")))
+            if not 0 <= cents <= 10_000_000:
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            flash("Bitte einen gültigen Preis eingeben.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        if not name:
+            flash("Der Artikel benötigt einen Namen.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        with db() as con:
+            result = con.execute("UPDATE items SET category=?,name=?,description=?,price_cents=?,sort_order=?,labels=?,allergens=?,sold_out=? WHERE id=? AND event_id=?", (
+                request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
+                request.form.get("description", "").strip()[:180], cents, int(request.form.get("sort_order", 0) or 0),
+                request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100],
+                1 if request.form.get("sold_out") == "1" else 0, item_id, event_id))
+            if not result.rowcount:
+                abort(404)
+        flash("Artikel wurde gespeichert.", "success")
         return redirect(url_for("edit_event", event_id=event_id))
 
     @app.post("/admin/events/<int:event_id>/items/<int:item_id>/delete")
@@ -309,6 +364,6 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "version": "0.2.0"}
+        return {"ok": True, "version": "0.3.0"}
 
     return app

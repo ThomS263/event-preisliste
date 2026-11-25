@@ -13,6 +13,7 @@ Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehr
 - große, schnelle Handyansicht ohne App und ohne externe Schriftarten
 - persistente SQLite-Daten im Docker-Volume
 - Adminbereich mit Passwort, Same-Origin-Schutz und Sicherheitsheadern
+- zentrales Admin-Panel mit Übersicht, Eventbearbeitung, Öffnungszeiten, Preisbearbeitung, Ausverkauft-Status, Kennzeichnungen und Allergenen
 - Docker-Healthcheck und eingeschränkte Containerrechte
 
 ## Schnellstart
@@ -53,6 +54,10 @@ pytest -q
 3. Auf die gewünschte Position im Plan tippen.
 4. Name, Art und Beschreibung eingeben und **Punkt hinzufügen** wählen.
 5. Auf der öffentlichen Eventseite können Gäste die nummerierten Punkte antippen.
+
+## Admin-Panel
+
+Unter `/admin/login` werden alle Veranstaltungen zentral verwaltet. Das Dashboard zeigt Events, veröffentlichte Events, Artikel und Planpunkte. In jedem Event gibt es Bereiche für Eventdaten, Preise, Plan und QR-Code. Artikel können nachträglich geändert, als ausverkauft markiert und mit Kennzeichnungen wie `vegan` sowie Allergencodes versehen werden.
 
 ## Geplante nächste Schritte
 

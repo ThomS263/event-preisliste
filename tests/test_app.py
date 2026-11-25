@@ -69,3 +69,27 @@ def test_interactive_map_upload_and_marker(tmp_path):
     assert "Interaktiver Plan" in page.get_data(as_text=True)
     assert "Getränkestand" in page.get_data(as_text=True)
     assert client.get("/e/feuerwehrfest/map").status_code == 200
+
+
+def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
+    client = app(tmp_path).test_client()
+    login(client)
+    client.post("/admin/events", data={"title": "Markt", "slug": "markt"})
+    client.post("/admin/events/1/update", data={
+        "title": "Adventmarkt", "subtitle": "Am Dorfplatz", "date_text": "1. Dezember",
+        "location": "Dorfplatz", "opening_hours": "10–20 Uhr", "accent": "#225544",
+    })
+    client.post("/admin/events/1/items", data={"category": "Essen", "name": "Kekse", "price": "2.00"})
+    response = client.post("/admin/events/1/items/1/update", data={
+        "category": "Essen", "name": "Weihnachtskekse", "description": "Hausgemacht", "price": "2,50",
+        "labels": "vegetarisch", "allergens": "A, C", "sort_order": "1", "sold_out": "1",
+    })
+    assert response.status_code == 302
+    client.post("/admin/events/1/toggle")
+    page = client.get("/e/markt").get_data(as_text=True)
+    assert "Adventmarkt" in page
+    assert "10–20 Uhr" in page
+    assert "Weihnachtskekse" in page
+    assert "Ausverkauft" in page
+    assert "vegetarisch" in page
+    assert "Allergene: A, C" in page
