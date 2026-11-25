@@ -1,8 +1,13 @@
 import io
+import csv
+import json
 import os
 import re
 import secrets
 import sqlite3
+import time
+import zipfile
+from collections import defaultdict, deque
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -10,7 +15,7 @@ from urllib.parse import urlsplit
 import qrcode
 from PIL import Image, UnidentifiedImageError
 from flask import (Flask, abort, flash, redirect, render_template, request,
-                   send_file, send_from_directory, session, url_for)
+                   Response, send_file, send_from_directory, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -33,8 +38,11 @@ def create_app(test_config=None):
         secret_file.write_text(secret)
         secret_file.chmod(0o600)
     password_file = data_dir / ".initial-admin-password"
+    password_hash_file = data_dir / ".admin-password-hash"
     admin_password = os.environ.get("EVENT_ADMIN_PASSWORD", "").strip()
-    if not admin_password:
+    if password_hash_file.exists():
+        admin_password = password_hash_file.read_text().strip()
+    elif not admin_password:
         if password_file.exists():
             admin_password = password_file.read_text().strip()
         else:
@@ -52,6 +60,7 @@ def create_app(test_config=None):
     )
     if test_config:
         app.config.update(test_config)
+    login_attempts = defaultdict(deque)
 
     def db():
         connection = sqlite3.connect(app.config["DATABASE"])
@@ -84,6 +93,10 @@ def create_app(test_config=None):
             con.execute("ALTER TABLE events ADD COLUMN map_filename TEXT NOT NULL DEFAULT ''")
         if "opening_hours" not in columns:
             con.execute("ALTER TABLE events ADD COLUMN opening_hours TEXT NOT NULL DEFAULT ''")
+        if "publish_from" not in columns:
+            con.execute("ALTER TABLE events ADD COLUMN publish_from TEXT NOT NULL DEFAULT ''")
+        if "publish_until" not in columns:
+            con.execute("ALTER TABLE events ADD COLUMN publish_until TEXT NOT NULL DEFAULT ''")
         item_columns = {row["name"] for row in con.execute("PRAGMA table_info(items)")}
         if "labels" not in item_columns:
             con.execute("ALTER TABLE items ADD COLUMN labels TEXT NOT NULL DEFAULT ''")
@@ -119,14 +132,16 @@ def create_app(test_config=None):
 
     @app.get("/")
     def home():
+        now = time.strftime("%Y-%m-%dT%H:%M")
         with db() as con:
-            events = con.execute("SELECT * FROM events WHERE published=1 ORDER BY id DESC").fetchall()
+            events = con.execute("SELECT * FROM events WHERE published=1 AND (publish_from='' OR publish_from<=?) AND (publish_until='' OR publish_until>=?) ORDER BY id DESC", (now, now)).fetchall()
         return render_template("home.html", events=events)
 
     @app.get("/e/<slug>")
     def event_page(slug):
+        now = time.strftime("%Y-%m-%dT%H:%M")
         with db() as con:
-            event = con.execute("SELECT * FROM events WHERE slug=? AND published=1", (slug,)).fetchone()
+            event = con.execute("SELECT * FROM events WHERE slug=? AND published=1 AND (publish_from='' OR publish_from<=?) AND (publish_until='' OR publish_until>=?)", (slug, now, now)).fetchone()
             if not event:
                 abort(404)
             items = con.execute("SELECT * FROM items WHERE event_id=? AND available=1 ORDER BY category,sort_order,id", (event["id"],)).fetchall()
@@ -160,13 +175,23 @@ def create_app(test_config=None):
     @app.route("/admin/login", methods=["GET", "POST"])
     def login():
         if request.method == "POST":
+            key = request.remote_addr or "unknown"
+            queue = login_attempts[key]
+            now = time.time()
+            while queue and now - queue[0] > 600:
+                queue.popleft()
+            if len(queue) >= 10:
+                flash("Zu viele Versuche. Bitte zehn Minuten warten.", "error")
+                return render_template("login.html"), 429
             supplied = request.form.get("password", "")
             configured = app.config["ADMIN_PASSWORD"]
             valid = check_password_hash(configured, supplied) if configured.startswith(("scrypt:", "pbkdf2:")) else secrets.compare_digest(supplied, configured)
             if valid:
+                queue.clear()
                 session.clear()
                 session["admin"] = True
                 return redirect(url_for("admin"))
+            queue.append(now)
             flash("Passwort falsch.", "error")
         return render_template("login.html")
 
@@ -307,13 +332,105 @@ def create_app(test_config=None):
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
             accent = "#8b1e3f"
         with db() as con:
-            result = con.execute("UPDATE events SET title=?,subtitle=?,date_text=?,location=?,opening_hours=?,accent=? WHERE id=?", (
+            result = con.execute("UPDATE events SET title=?,subtitle=?,date_text=?,location=?,opening_hours=?,accent=?,publish_from=?,publish_until=? WHERE id=?", (
                 title, request.form.get("subtitle", "").strip()[:160], request.form.get("date_text", "").strip()[:60],
-                request.form.get("location", "").strip()[:100], request.form.get("opening_hours", "").strip()[:180], accent, event_id))
+                request.form.get("location", "").strip()[:100], request.form.get("opening_hours", "").strip()[:180], accent,
+                request.form.get("publish_from", "")[:16], request.form.get("publish_until", "")[:16], event_id))
             if not result.rowcount:
                 abort(404)
         flash("Eventdaten wurden gespeichert.", "success")
         return redirect(url_for("edit_event", event_id=event_id))
+
+    @app.post("/admin/events/<int:event_id>/clone")
+    def clone_event(event_id):
+        admin_required()
+        new_slug = request.form.get("slug", "").strip().lower()
+        if not SLUG_RE.fullmatch(new_slug):
+            flash("Bitte eine gültige neue Adresse eingeben.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        try:
+            with db() as con:
+                source = con.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+                if not source:
+                    abort(404)
+                cursor = con.execute("INSERT INTO events(slug,title,subtitle,date_text,location,opening_hours,accent,published) VALUES(?,?,?,?,?,?,?,0)", (
+                    new_slug, source["title"] + " – Kopie", source["subtitle"], source["date_text"], source["location"], source["opening_hours"], source["accent"]))
+                new_id = cursor.lastrowid
+                con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,available,labels,allergens,sold_out) SELECT ?,category,name,description,price_cents,sort_order,available,labels,allergens,0 FROM items WHERE event_id=?", (new_id, event_id))
+        except sqlite3.IntegrityError:
+            flash("Diese Adresse wird bereits verwendet.", "error")
+            return redirect(url_for("edit_event", event_id=event_id))
+        return redirect(url_for("edit_event", event_id=new_id))
+
+    @app.get("/admin/events/<int:event_id>/items.csv")
+    def export_items(event_id):
+        admin_required()
+        with db() as con:
+            rows = con.execute("SELECT category,name,description,price_cents,labels,allergens,sort_order,sold_out FROM items WHERE event_id=? ORDER BY sort_order,id", (event_id,)).fetchall()
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=";")
+        writer.writerow(["Kategorie", "Name", "Beschreibung", "Preis", "Kennzeichnungen", "Allergene", "Reihenfolge", "Ausverkauft"])
+        for row in rows:
+            writer.writerow([row["category"], row["name"], row["description"], f'{row["price_cents"]/100:.2f}', row["labels"], row["allergens"], row["sort_order"], row["sold_out"]])
+        return Response("\ufeff" + output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": f'attachment; filename="preisliste-{event_id}.csv"'})
+
+    @app.post("/admin/events/<int:event_id>/items/import")
+    def import_items(event_id):
+        admin_required()
+        upload = request.files.get("csv")
+        if not upload:
+            abort(400)
+        try:
+            text = upload.read(512 * 1024).decode("utf-8-sig")
+            rows = list(csv.DictReader(io.StringIO(text), delimiter=";"))[:1000]
+            values = []
+            for row in rows:
+                cents = int((Decimal(row["Preis"].replace(",", ".")) * 100).quantize(Decimal("1")))
+                values.append((event_id, row.get("Kategorie", "Allgemein")[:60], row["Name"][:100], row.get("Beschreibung", "")[:180], cents, int(row.get("Reihenfolge", 0) or 0), row.get("Kennzeichnungen", "")[:100], row.get("Allergene", "")[:100], 1 if row.get("Ausverkauft") in {"1", "ja", "true"} else 0))
+            with db() as con:
+                con.executemany("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,labels,allergens,sold_out) VALUES(?,?,?,?,?,?,?,?,?)", values)
+            flash(f"{len(values)} Artikel wurden importiert.", "success")
+        except (KeyError, ValueError, InvalidOperation, UnicodeDecodeError):
+            flash("CSV konnte nicht gelesen werden. Bitte zuerst eine Vorlage exportieren.", "error")
+        return redirect(url_for("edit_event", event_id=event_id))
+
+    @app.get("/admin/backup.zip")
+    def backup():
+        admin_required()
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.write(app.config["DATABASE"], "events.sqlite3")
+            for path in map_dir.glob("event-*"):
+                if path.is_file():
+                    archive.write(path, f"maps/{path.name}")
+            archive.writestr("backup.json", json.dumps({"version": "0.4.0", "created": int(time.time())}))
+        output.seek(0)
+        return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"event-preisliste-{time.strftime('%Y%m%d')}.zip")
+
+    @app.post("/admin/password")
+    def change_password():
+        admin_required()
+        new_password = request.form.get("password", "")
+        if len(new_password) < 12:
+            flash("Das neue Passwort muss mindestens 12 Zeichen haben.", "error")
+        else:
+            hashed = generate_password_hash(new_password)
+            password_hash_file.write_text(hashed)
+            password_hash_file.chmod(0o600)
+            app.config["ADMIN_PASSWORD"] = hashed
+            session.clear()
+            flash("Passwort geändert. Bitte neu anmelden.", "success")
+            return redirect(url_for("login"))
+        return redirect(url_for("admin"))
+
+    @app.get("/manifest.webmanifest")
+    def manifest():
+        return {"name": "Event-Preisliste", "short_name": "Preisliste", "start_url": "/", "display": "standalone", "background_color": "#f7f4ed", "theme_color": "#17332c", "icons": []}, 200, {"Content-Type": "application/manifest+json"}
+
+    @app.get("/service-worker.js")
+    def service_worker():
+        script = "const C='event-preisliste-v1';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css']))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
+        return Response(script, mimetype="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
     @app.post("/admin/events/<int:event_id>/items")
     def add_item(event_id):
@@ -373,6 +490,6 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "version": "0.3.0"}
+        return {"ok": True, "version": "0.4.0"}
 
     return app

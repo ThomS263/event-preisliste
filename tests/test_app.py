@@ -100,7 +100,32 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.3.0"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.4.0"
     assert service["ports"][0]["published"] == "8090"
     assert service["volumes"][0]["target"] == "/data"
     assert manifest["x-casaos"]["main"] == "event-preisliste"
+
+
+def test_clone_csv_backup_and_pwa(tmp_path):
+    client = app(tmp_path).test_client()
+    login(client)
+    client.post("/admin/events", data={"title": "Markt", "slug": "markt"})
+    client.post("/admin/events/1/items", data={"category": "Getränke", "name": "Punsch", "price": "4.50"})
+    assert client.post("/admin/events/1/clone", data={"slug": "markt-2027"}).status_code == 302
+    exported = client.get("/admin/events/1/items.csv")
+    assert exported.status_code == 200 and "Punsch" in exported.get_data(as_text=True)
+    backup = client.get("/admin/backup.zip")
+    assert backup.status_code == 200 and backup.data.startswith(b"PK")
+    assert client.get("/manifest.webmanifest").status_code == 200
+    assert "event-preisliste-v1" in client.get("/service-worker.js").get_data(as_text=True)
+
+
+def test_password_change_and_login_rate_limit(tmp_path):
+    client = app(tmp_path).test_client()
+    login(client)
+    assert client.post("/admin/password", data={"password": "neues-sehr-langes-passwort"}).status_code == 302
+    assert client.post("/admin/login", data={"password": "neues-sehr-langes-passwort"}).status_code == 302
+    other = app(tmp_path / "other").test_client()
+    for _ in range(10):
+        other.post("/admin/login", data={"password": "falsch"})
+    assert other.post("/admin/login", data={"password": "falsch"}).status_code == 429

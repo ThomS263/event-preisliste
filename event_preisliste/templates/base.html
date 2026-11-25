@@ -4,8 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}Event-Preisliste{% endblock %}</title>
+  <meta name="theme-color" content="#17332c">
+  <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='extras.css') }}">
 </head>
 <body>
 <header><a class="brand" href="{{ url_for('home') }}">Event-Preisliste</a>{% if session.admin %}<a href="{{ url_for('admin') }}">Verwaltung</a>{% endif %}</header>
@@ -14,5 +17,6 @@
   {% block content %}{% endblock %}
 </main>
 {% block scripts %}{% endblock %}
+<script src="{{ url_for('static',filename='app.js') }}" defer></script>
 </body>
 </html>

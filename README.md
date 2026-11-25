@@ -2,7 +2,7 @@
 
 Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehrfeste, Vereinsfeste und andere Veranstaltungen. Für jedes Event wird eine eigene öffentliche Seite mit QR-Code erzeugt.
 
-**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.3.0/Apps/EventPreisliste/docker-compose.yml)**
+**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.4.0/Apps/EventPreisliste/docker-compose.yml)**
 
 ## Funktionen
 
@@ -16,6 +16,10 @@ Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehr
 - persistente SQLite-Daten im Docker-Volume
 - Adminbereich mit Passwort, Same-Origin-Schutz und Sicherheitsheadern
 - zentrales Admin-Panel mit Übersicht, Eventbearbeitung, Öffnungszeiten, Preisbearbeitung, Ausverkauft-Status, Kennzeichnungen und Allergenen
+- Artikelsuche, installierbare PWA und Offline-Zwischenspeicher
+- zeitgesteuerte Veröffentlichung und Eventvorlagen zum Duplizieren
+- CSV-Import/-Export und ZIP-Sicherung
+- Adminpasswortwechsel, Login-Rate-Limit und automatische Sicherheitsprüfungen
 - Docker-Healthcheck und eingeschränkte Containerrechte
 
 ## Schnellstart
