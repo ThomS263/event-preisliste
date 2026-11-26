@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ stand.name }} · Druckschild</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#e9eeeb;color:#17332c;font:18px/1.4 system-ui,sans-serif}.toolbar{display:flex;justify-content:center;gap:12px;padding:18px}.toolbar a{padding:11px 16px;border-radius:10px;background:#17332c;color:#fff;text-decoration:none;font-weight:800}.sheet{width:min(210mm,calc(100% - 30px));min-height:285mm;margin:0 auto 30px;padding:22mm;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:18px solid {{ stand.accent }};background:#fff;text-align:center;box-shadow:0 12px 40px #0002}.event{margin:0;color:#68766f;font-size:1.2rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1{margin:18px 0 8px;font:800 clamp(3rem,9vw,6rem)/1 system-ui,sans-serif;letter-spacing:-.05em}.description{max-width:650px;font-size:1.45rem}.qr{width:85mm;height:85mm;margin:22mm 0 8mm}.hint{font-size:1.35rem;font-weight:800}.meta{margin-top:10mm;color:#68766f}@media print{body{background:#fff}.toolbar{display:none}.sheet{width:100%;height:100vh;min-height:0;margin:0;padding:16mm;box-shadow:none;break-after:page}}
+  </style>
+</head>
+<body>
+  <nav class="toolbar"><a href="{{ url_for('edit_event', event_id=event.id) }}#staende">← Zurück</a><a href="{{ url_for('stand_qr', slug=event.slug, stand_id=stand.id) }}" download>QR-Code laden</a><span>Zum Drucken: Strg/⌘ + P</span></nav>
+  <main class="sheet"><p class="event">{{ event.title }}</p><h1>{{ stand.name }}</h1>{% if stand.description %}<p class="description">{{ stand.description }}</p>{% endif %}<img class="qr" src="{{ url_for('stand_qr', slug=event.slug, stand_id=stand.id) }}" alt="QR-Code"><p class="hint">Scannen und Angebot ansehen</p><p class="meta">{{ event.date_text }}{% if event.location %} · {{ event.location }}{% endif %}</p></main>
+</body>
+</html>

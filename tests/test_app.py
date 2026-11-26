@@ -100,7 +100,7 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.6.0"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.7.0"
     assert service["pull_policy"] == "always"
     assert service["ports"][0]["published"] == "8090"
     compose = yaml.safe_load(Path("compose.yaml").read_text())
@@ -120,7 +120,7 @@ def test_clone_csv_backup_and_pwa(tmp_path):
     backup = client.get("/admin/backup.zip")
     assert backup.status_code == 200 and backup.data.startswith(b"PK")
     assert client.get("/manifest.webmanifest").status_code == 200
-    assert "event-preisliste-v3" in client.get("/service-worker.js").get_data(as_text=True)
+    assert "event-preisliste-v4" in client.get("/service-worker.js").get_data(as_text=True)
 
 
 def test_password_change_and_login_rate_limit(tmp_path):
@@ -160,7 +160,8 @@ def test_stands_can_be_selected_and_items_assigned(tmp_path):
         "accent": "#225544", "sort_order": "2",
     })
     client.post("/admin/events/1/items", data={
-        "stand_id": "1", "category": "Getränke", "name": "Kinderpunsch", "price": "3,50",
+        "stand_id": "1", "category": "Getränke", "name": "Kinderpunsch", "name_en": "Children's punch",
+        "description_en": "Alcohol-free", "price": "3,50",
     })
     client.post("/admin/events/1/items", data={
         "stand_id": "2", "category": "Essen", "name": "Vanillekipferl", "price": "2,00",
@@ -170,6 +171,22 @@ def test_stands_can_be_selected_and_items_assigned(tmp_path):
     assert "Welchen Stand möchtest du sehen?" in page
     assert 'data-stand="1"' in page and "Kinderpunsch" in page
     assert 'data-stand="2"' in page and "Vanillekipferl" in page
+    response = client.post("/admin/events/1/stands/1/update", data={
+        "name": "Punschstand", "name_en": "Mulled wine stall", "description": "Heiße Getränke",
+        "description_en": "Hot drinks", "kind": "getraenk", "accent": "#8b1e3f", "sort_order": "1",
+        "opening_hours": "Sa 14–22 Uhr", "contact": "feuerwehr@example.org", "status": "open", "active": "1",
+    })
+    assert response.status_code == 302
+    english = client.get("/e/adventmarkt?lang=en&stand=1").get_data(as_text=True)
+    assert "Mulled wine stall" in english and "Children&#39;s punch" in english and "Hot drinks" in english
+    image_data = io.BytesIO()
+    Image.new("RGB", (30, 20), "orange").save(image_data, format="JPEG")
+    image_data.seek(0)
+    assert client.post("/admin/events/1/stands/1/image", data={"image": (image_data, "stand.jpg")}, content_type="multipart/form-data").status_code == 302
+    assert client.get("/e/adventmarkt/stands/1/image").status_code == 200
+    assert client.get("/e/adventmarkt/stands/1/qr.png").mimetype == "image/png"
+    assert "Scannen und Angebot ansehen" in client.get("/admin/events/1/stands/1/sign").get_data(as_text=True)
+    assert client.post("/admin/events/1/stands/reorder", json={"order": [2, 1]}).json["ok"] is True
     client.post("/admin/events/1/stands/2/update", data={
         "name": "Kekshütte", "kind": "essen", "accent": "#225544", "sort_order": "2",
     })

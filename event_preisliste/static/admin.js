@@ -21,4 +21,25 @@
       if (!window.confirm(form.dataset.confirm)) event.preventDefault();
     });
   });
+  const sortList = document.querySelector('[data-stand-sort]');
+  if (sortList) {
+    let dragged = null;
+    sortList.querySelectorAll('[data-stand-id]').forEach(card => {
+      const handle = card.querySelector('.drag-handle');
+      handle?.addEventListener('dragstart', event => { dragged = card; card.classList.add('dragging'); event.dataTransfer.effectAllowed = 'move'; });
+      handle?.addEventListener('dragend', () => { card.classList.remove('dragging'); dragged = null; saveOrder(); });
+      card.addEventListener('dragover', event => {
+        if (!dragged || dragged === card) return;
+        event.preventDefault();
+        const rect = card.getBoundingClientRect();
+        sortList.insertBefore(dragged, event.clientY < rect.top + rect.height / 2 ? card : card.nextSibling);
+      });
+    });
+    async function saveOrder() {
+      const order = [...sortList.querySelectorAll('[data-stand-id]')].map(card => Number(card.dataset.standId));
+      try {
+        await fetch(sortList.dataset.reorderUrl, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({order})});
+      } catch (_) {}
+    }
+  }
 })();

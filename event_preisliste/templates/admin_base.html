@@ -8,7 +8,7 @@
     <a class="admin-brand" href="{{ url_for('admin') }}"><img src="{{ url_for('static', filename='logo.svg') }}" width="42" height="42" alt=""><span><strong>Event-Preisliste</strong><small>Verwaltung</small></span></a>
     <nav class="side-nav" aria-label="Verwaltung">
       <a class="{% if admin_page == 'overview' %}active{% endif %}" href="{{ url_for('admin') }}"><span>⌂</span>Übersicht</a>
-      {% if event %}<p>Dieses Event</p><a href="#eventdaten"><span>✎</span>Eventdaten</a><a href="#staende"><span>▥</span>Stände</a><a href="#preise"><span>€</span>Preisliste</a><a href="#plan"><span>⌖</span>Plan</a><a href="#qr"><span>▦</span>QR-Code</a>
+      {% if event %}<p>Dieses Event</p><a href="#eventdaten"><span>✎</span>Eventdaten</a><a href="#staende"><span>▥</span>Stände</a><a href="#preise"><span>€</span>Preisliste</a><a href="#uebersetzungen"><span>EN</span>Übersetzungen</a><a href="#plan"><span>⌖</span>Plan</a><a href="#qr"><span>▦</span>QR-Code</a>
       {% else %}<a href="#events"><span>▤</span>Veranstaltungen</a><a href="#new-event"><span>＋</span>Neues Event</a><a href="#settings"><span>⚙</span>Sicherheit &amp; Backup</a>{% endif %}
     </nav>
     <div class="sidebar-footer"><small>Version {{ app_version }}</small><a href="{{ url_for('home') }}" target="_blank" rel="noopener"><span>↗</span>Öffentliche Seite</a><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span>⇥</span>Abmelden</button></form></div>

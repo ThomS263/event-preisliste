@@ -4,7 +4,7 @@
 
 Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehrfeste, Vereinsfeste und andere Veranstaltungen. Für jedes Event wird eine eigene öffentliche Seite mit QR-Code erzeugt.
 
-**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.6.0/Apps/EventPreisliste/docker-compose.yml)**
+**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.7.0/Apps/EventPreisliste/docker-compose.yml)**
 
 ## Ein Blick in die App
 
@@ -16,6 +16,7 @@ Die Handyansicht zeigt die Angebote für Gäste. Im Admin-Panel können Veransta
 <a href="docs/screenshots/verwaltung.png"><img src="docs/screenshots/verwaltung.png" width="580" alt="Professionelles Verwaltungs-Dashboard"></a>
 <a href="docs/screenshots/verwaltung-handy.png"><img src="docs/screenshots/verwaltung-handy.png" width="220" alt="Verwaltung auf dem Handy"></a>
 <a href="docs/screenshots/staende-handy.png"><img src="docs/screenshots/staende-handy.png" width="220" alt="Stand auswählen auf dem Handy"></a>
+<a href="docs/screenshots/standverwaltung-handy.png"><img src="docs/screenshots/standverwaltung-handy.png" width="220" alt="Standverwaltung auf dem Handy"></a>
 
 <a href="docs/screenshots/event-bearbeiten.png"><img src="docs/screenshots/event-bearbeiten.png" width="800" alt="Event, Preisliste, Plan und QR-Code bearbeiten"></a>
 
@@ -24,6 +25,9 @@ Die Handyansicht zeigt die Angebote für Gäste. Im Admin-Panel können Veransta
 - mehrere Veranstaltungen getrennt verwalten
 - mehrere Stände pro Veranstaltung mit eigener Art, Farbe, Beschreibung und Artikeln
 - große Standauswahl für Besucher mit kombinierter Suche und Filterung
+- Standbilder, Öffnungszeiten, Kontakt, Live-Status und Verknüpfung mit dem Lageplan
+- Favoriten, Stand-QR-Codes und druckfertige Stand-Schilder
+- Drag-and-drop-Sortierung sowie deutsche und englische Stand- und Artikeltexte
 - Titel, Untertitel, Datum, Ort und Farbe pro Event
 - Artikel nach Kategorien mit Beschreibung und Europreis
 - Event zunächst als Entwurf vorbereiten und später veröffentlichen
@@ -89,10 +93,9 @@ Unter `/admin/login` werden alle Veranstaltungen zentral verwaltet. Das Dashboar
 
 ## Mögliche nächste Schritte
 
-- eigene Bilder und Logos pro Event oder Stand
-- mehrsprachige Preislisten
-- Druckansicht für QR-Code-Schilder
-- Stand direkt mit einem Punkt auf dem interaktiven Plan verbinden
+- optionale Bestell- oder Reservierungsfunktion
+- Statistik über häufig aufgerufene Stände ohne personenbezogene Daten
+- zusätzliche Sprachen neben Deutsch und Englisch
 
 ## Lizenz
 

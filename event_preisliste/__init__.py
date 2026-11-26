@@ -14,13 +14,13 @@ from urllib.parse import urlsplit
 
 import qrcode
 from PIL import Image, UnidentifiedImageError
-from flask import (Flask, abort, flash, redirect, render_template, request,
+from flask import (Flask, abort, flash, jsonify, redirect, render_template, request,
                    Response, send_file, send_from_directory, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.7.0"
 
 
 def create_app(test_config=None):
@@ -31,6 +31,8 @@ def create_app(test_config=None):
     data_dir.mkdir(parents=True, exist_ok=True)
     map_dir = data_dir / "maps"
     map_dir.mkdir(exist_ok=True)
+    stand_dir = data_dir / "stands"
+    stand_dir.mkdir(exist_ok=True)
     secret_file = data_dir / ".secret"
     if secret_file.exists():
         secret = secret_file.read_text().strip()
@@ -96,6 +98,12 @@ def create_app(test_config=None):
             return stand_id
         return None
 
+    def form_int(name, default=0, minimum=-10000, maximum=10000):
+        try:
+            return max(minimum, min(maximum, int(request.form.get(name, default) or default)))
+        except (TypeError, ValueError):
+            return default
+
     with db() as con:
         con.executescript("""
             CREATE TABLE IF NOT EXISTS events (
@@ -140,6 +148,19 @@ def create_app(test_config=None):
             con.execute("ALTER TABLE items ADD COLUMN sold_out INTEGER NOT NULL DEFAULT 0")
         if "stand_id" not in item_columns:
             con.execute("ALTER TABLE items ADD COLUMN stand_id INTEGER REFERENCES stands(id) ON DELETE SET NULL")
+        for name in ("name_en", "description_en"):
+            if name not in item_columns:
+                con.execute(f"ALTER TABLE items ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+        stand_columns = {row["name"] for row in con.execute("PRAGMA table_info(stands)")}
+        stand_migrations = {
+            "name_en": "TEXT NOT NULL DEFAULT ''", "description_en": "TEXT NOT NULL DEFAULT ''",
+            "opening_hours": "TEXT NOT NULL DEFAULT ''", "contact": "TEXT NOT NULL DEFAULT ''",
+            "status": "TEXT NOT NULL DEFAULT 'open'", "image_filename": "TEXT NOT NULL DEFAULT ''",
+            "marker_id": "INTEGER REFERENCES map_markers(id) ON DELETE SET NULL",
+        }
+        for name, definition in stand_migrations.items():
+            if name not in stand_columns:
+                con.execute(f"ALTER TABLE stands ADD COLUMN {name} {definition}")
 
     def admin_required():
         if not session.get("admin"):
@@ -180,15 +201,19 @@ def create_app(test_config=None):
             event = con.execute("SELECT * FROM events WHERE slug=? AND published=1 AND (publish_from='' OR publish_from<=?) AND (publish_until='' OR publish_until>=?)", (slug, now, now)).fetchone()
             if not event:
                 abort(404)
-            items = con.execute("SELECT i.*,s.name stand_name FROM items i LEFT JOIN stands s ON s.id=i.stand_id WHERE i.event_id=? AND i.available=1 AND (i.stand_id IS NULL OR s.active=1) ORDER BY i.category,i.sort_order,i.id", (event["id"],)).fetchall()
+            items = con.execute("SELECT i.*,s.name stand_name,s.name_en stand_name_en,s.kind stand_kind,s.status stand_status FROM items i LEFT JOIN stands s ON s.id=i.stand_id WHERE i.event_id=? AND i.available=1 AND (i.stand_id IS NULL OR s.active=1) ORDER BY i.category,i.sort_order,i.id", (event["id"],)).fetchall()
             stands = con.execute("SELECT * FROM stands WHERE event_id=? AND active=1 ORDER BY sort_order,id", (event["id"],)).fetchall()
             markers = con.execute("SELECT * FROM map_markers WHERE event_id=? ORDER BY id", (event["id"],)).fetchall()
         groups = {}
         for item in items:
             groups.setdefault(item["category"], []).append(item)
         has_general_items = any(item["stand_id"] is None for item in items)
+        language = "en" if request.args.get("lang") == "en" else "de"
+        marker_stands = {stand["marker_id"]: stand["id"] for stand in stands if stand["marker_id"]}
         return render_template("event.html", event=event, groups=groups, markers=markers,
-                               stands=stands, has_general_items=has_general_items)
+                               stands=stands, has_general_items=has_general_items,
+                               language=language, selected_stand=request.args.get("stand", "all"),
+                               marker_stands=marker_stands)
 
     @app.get("/e/<slug>/map")
     def event_map(slug):
@@ -210,6 +235,27 @@ def create_app(test_config=None):
         image.save(output, format="PNG")
         output.seek(0)
         return send_file(output, mimetype="image/png", download_name=f"qr-{slug}.png")
+
+    @app.get("/e/<slug>/stands/<int:stand_id>/qr.png")
+    def stand_qr(slug, stand_id):
+        with db() as con:
+            stand = con.execute("SELECT s.id FROM stands s JOIN events e ON e.id=s.event_id WHERE e.slug=? AND s.id=?", (slug, stand_id)).fetchone()
+        if not stand:
+            abort(404)
+        base = app.config["PUBLIC_URL"] or request.host_url.rstrip("/")
+        image = qrcode.make(f"{base}{url_for('event_page', slug=slug)}?stand={stand_id}")
+        output = io.BytesIO()
+        image.save(output, format="PNG")
+        output.seek(0)
+        return send_file(output, mimetype="image/png", download_name=f"qr-stand-{stand_id}.png")
+
+    @app.get("/e/<slug>/stands/<int:stand_id>/image")
+    def stand_image(slug, stand_id):
+        with db() as con:
+            stand = con.execute("SELECT s.image_filename FROM stands s JOIN events e ON e.id=s.event_id WHERE e.slug=? AND s.id=? AND s.active=1", (slug, stand_id)).fetchone()
+        if not stand or not stand["image_filename"]:
+            abort(404)
+        return send_from_directory(stand_dir, stand["image_filename"], max_age=3600)
 
     @app.route("/admin/login", methods=["GET", "POST"])
     def login():
@@ -321,9 +367,11 @@ def create_app(test_config=None):
         with db() as con:
             if not con.execute("SELECT 1 FROM events WHERE id=?", (event_id,)).fetchone():
                 abort(404)
-            con.execute("INSERT INTO stands(event_id,name,description,kind,accent,sort_order) VALUES(?,?,?,?,?,?)", (
-                event_id, name, request.form.get("description", "").strip()[:180], kind, accent,
-                int(request.form.get("sort_order", 0) or 0)))
+            con.execute("INSERT INTO stands(event_id,name,description,name_en,description_en,kind,accent,sort_order,opening_hours,contact,status,marker_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (
+                event_id, name, request.form.get("description", "").strip()[:180],
+                request.form.get("name_en", "").strip()[:80], request.form.get("description_en", "").strip()[:180],
+                kind, accent, form_int("sort_order"), request.form.get("opening_hours", "").strip()[:180],
+                request.form.get("contact", "").strip()[:160], "open", None))
         flash("Stand wurde angelegt.", "success")
         return redirect(url_for("edit_event", event_id=event_id) + "#staende")
 
@@ -340,11 +388,21 @@ def create_app(test_config=None):
             kind = "stand"
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
             accent = "#1f6f5c"
+        status = request.form.get("status", "open")
+        if status not in {"open", "closed", "sold_out"}:
+            status = "open"
         with db() as con:
-            result = con.execute("UPDATE stands SET name=?,description=?,kind=?,accent=?,sort_order=?,active=? WHERE id=? AND event_id=?", (
-                name, request.form.get("description", "").strip()[:180], kind, accent,
-                int(request.form.get("sort_order", 0) or 0), 1 if request.form.get("active") == "1" else 0,
-                stand_id, event_id))
+            try:
+                marker_id = int(request.form.get("marker_id", "") or 0) or None
+            except ValueError:
+                marker_id = None
+            if marker_id and not con.execute("SELECT 1 FROM map_markers WHERE id=? AND event_id=?", (marker_id, event_id)).fetchone():
+                marker_id = None
+            result = con.execute("UPDATE stands SET name=?,description=?,name_en=?,description_en=?,kind=?,accent=?,sort_order=?,active=?,opening_hours=?,contact=?,status=?,marker_id=? WHERE id=? AND event_id=?", (
+                name, request.form.get("description", "").strip()[:180], request.form.get("name_en", "").strip()[:80],
+                request.form.get("description_en", "").strip()[:180], kind, accent, form_int("sort_order"),
+                1 if request.form.get("active") == "1" else 0, request.form.get("opening_hours", "").strip()[:180],
+                request.form.get("contact", "").strip()[:160], status, marker_id, stand_id, event_id))
             if not result.rowcount:
                 abort(404)
         flash("Stand wurde gespeichert.", "success")
@@ -354,10 +412,81 @@ def create_app(test_config=None):
     def delete_stand(event_id, stand_id):
         admin_required()
         with db() as con:
+            stand = con.execute("SELECT image_filename FROM stands WHERE id=? AND event_id=?", (stand_id, event_id)).fetchone()
             con.execute("UPDATE items SET stand_id=NULL WHERE event_id=? AND stand_id=?", (event_id, stand_id))
             con.execute("DELETE FROM stands WHERE id=? AND event_id=?", (stand_id, event_id))
+        if stand and stand["image_filename"]:
+            try:
+                (stand_dir / stand["image_filename"]).unlink()
+            except FileNotFoundError:
+                pass
         flash("Stand wurde gelöscht. Seine Artikel sind jetzt allgemein zugeordnet.", "success")
         return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+
+    @app.post("/admin/events/<int:event_id>/stands/reorder")
+    def reorder_stands(event_id):
+        admin_required()
+        order = (request.get_json(silent=True) or {}).get("order", [])
+        if not isinstance(order, list) or len(order) > 500:
+            return jsonify(ok=False), 400
+        with db() as con:
+            valid = {row["id"] for row in con.execute("SELECT id FROM stands WHERE event_id=?", (event_id,))}
+            cleaned = []
+            for value in order:
+                try:
+                    stand_id = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if stand_id in valid and stand_id not in cleaned:
+                    cleaned.append(stand_id)
+            for position, stand_id in enumerate(cleaned):
+                con.execute("UPDATE stands SET sort_order=? WHERE id=? AND event_id=?", (position, stand_id, event_id))
+        return jsonify(ok=True)
+
+    @app.post("/admin/events/<int:event_id>/stands/<int:stand_id>/image")
+    def upload_stand_image(event_id, stand_id):
+        admin_required()
+        upload = request.files.get("image")
+        if not upload or not upload.filename:
+            flash("Bitte ein Standbild auswählen.", "error")
+            return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+        data = upload.read(2 * 1024 * 1024 + 1)
+        extension = None
+        if len(data) <= 2 * 1024 * 1024:
+            try:
+                with Image.open(io.BytesIO(data)) as image:
+                    image.verify()
+                    extension = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}.get(image.format)
+            except (UnidentifiedImageError, OSError):
+                pass
+        if not extension:
+            flash("Erlaubt sind PNG, JPEG oder WebP bis 2 MB.", "error")
+            return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+        with db() as con:
+            stand = con.execute("SELECT image_filename FROM stands WHERE id=? AND event_id=?", (stand_id, event_id)).fetchone()
+            if not stand:
+                abort(404)
+            filename = f"stand-{event_id}-{stand_id}-{secrets.token_hex(6)}{extension}"
+            (stand_dir / filename).write_bytes(data)
+            old = stand["image_filename"]
+            con.execute("UPDATE stands SET image_filename=? WHERE id=?", (filename, stand_id))
+        if old:
+            try:
+                (stand_dir / old).unlink()
+            except FileNotFoundError:
+                pass
+        flash("Standbild wurde gespeichert.", "success")
+        return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+
+    @app.get("/admin/events/<int:event_id>/stands/<int:stand_id>/sign")
+    def stand_sign(event_id, stand_id):
+        admin_required()
+        with db() as con:
+            event = con.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+            stand = con.execute("SELECT * FROM stands WHERE id=? AND event_id=?", (stand_id, event_id)).fetchone()
+        if not event or not stand:
+            abort(404)
+        return render_template("stand_sign.html", event=event, stand=stand)
 
     @app.post("/admin/events/<int:event_id>/map")
     def upload_map(event_id):
@@ -478,13 +607,14 @@ def create_app(test_config=None):
                 new_id = cursor.lastrowid
                 stand_map = {}
                 for stand in con.execute("SELECT * FROM stands WHERE event_id=? ORDER BY id", (event_id,)).fetchall():
-                    created = con.execute("INSERT INTO stands(event_id,name,description,kind,accent,sort_order,active) VALUES(?,?,?,?,?,?,?)", (
-                        new_id, stand["name"], stand["description"], stand["kind"], stand["accent"], stand["sort_order"], stand["active"]))
+                    created = con.execute("INSERT INTO stands(event_id,name,description,name_en,description_en,kind,accent,sort_order,active,opening_hours,contact,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (
+                        new_id, stand["name"], stand["description"], stand["name_en"], stand["description_en"], stand["kind"],
+                        stand["accent"], stand["sort_order"], stand["active"], stand["opening_hours"], stand["contact"], stand["status"]))
                     stand_map[stand["id"]] = created.lastrowid
                 for item in con.execute("SELECT * FROM items WHERE event_id=? ORDER BY id", (event_id,)).fetchall():
-                    con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,available,labels,allergens,sold_out,stand_id) VALUES(?,?,?,?,?,?,?,?,?,0,?)", (
-                        new_id, item["category"], item["name"], item["description"], item["price_cents"], item["sort_order"],
-                        item["available"], item["labels"], item["allergens"], stand_map.get(item["stand_id"])))
+                    con.execute("INSERT INTO items(event_id,category,name,description,name_en,description_en,price_cents,sort_order,available,labels,allergens,sold_out,stand_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,0,?)", (
+                        new_id, item["category"], item["name"], item["description"], item["name_en"], item["description_en"],
+                        item["price_cents"], item["sort_order"], item["available"], item["labels"], item["allergens"], stand_map.get(item["stand_id"])))
         except sqlite3.IntegrityError:
             flash("Diese Adresse wird bereits verwendet.", "error")
             return redirect(url_for("edit_event", event_id=event_id))
@@ -538,6 +668,9 @@ def create_app(test_config=None):
             for path in map_dir.glob("event-*"):
                 if path.is_file():
                     archive.write(path, f"maps/{path.name}")
+            for path in stand_dir.glob("stand-*"):
+                if path.is_file():
+                    archive.write(path, f"stands/{path.name}")
             archive.writestr("backup.json", json.dumps({"version": APP_VERSION, "created": int(time.time())}))
         output.seek(0)
         return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"event-preisliste-{time.strftime('%Y%m%d')}.zip")
@@ -567,7 +700,7 @@ def create_app(test_config=None):
 
     @app.get("/service-worker.js")
     def service_worker():
-        script = "const C='event-preisliste-v3';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css','/static/extras.css','/static/logo.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
+        script = "const C='event-preisliste-v4';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css','/static/extras.css','/static/logo.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
         return Response(script, mimetype="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
     @app.post("/admin/events/<int:event_id>/items")
@@ -589,9 +722,10 @@ def create_app(test_config=None):
             if not con.execute("SELECT 1 FROM events WHERE id=?", (event_id,)).fetchone():
                 abort(404)
             stand_id = selected_stand_id(con, event_id)
-            con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,labels,allergens,stand_id) VALUES(?,?,?,?,?,?,?,?,?)", (
+            con.execute("INSERT INTO items(event_id,category,name,description,name_en,description_en,price_cents,sort_order,labels,allergens,stand_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)", (
                 event_id, request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
-                request.form.get("description", "").strip()[:180], cents, int(request.form.get("sort_order", 0) or 0),
+                request.form.get("description", "").strip()[:180], request.form.get("name_en", "").strip()[:100],
+                request.form.get("description_en", "").strip()[:180], cents, form_int("sort_order"),
                 request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100], stand_id))
         return redirect(url_for("edit_event", event_id=event_id))
 
@@ -611,9 +745,10 @@ def create_app(test_config=None):
             return redirect(url_for("edit_event", event_id=event_id))
         with db() as con:
             stand_id = selected_stand_id(con, event_id)
-            result = con.execute("UPDATE items SET category=?,name=?,description=?,price_cents=?,sort_order=?,labels=?,allergens=?,sold_out=?,stand_id=? WHERE id=? AND event_id=?", (
+            result = con.execute("UPDATE items SET category=?,name=?,description=?,name_en=?,description_en=?,price_cents=?,sort_order=?,labels=?,allergens=?,sold_out=?,stand_id=? WHERE id=? AND event_id=?", (
                 request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
-                request.form.get("description", "").strip()[:180], cents, int(request.form.get("sort_order", 0) or 0),
+                request.form.get("description", "").strip()[:180], request.form.get("name_en", "").strip()[:100],
+                request.form.get("description_en", "").strip()[:180], cents, form_int("sort_order"),
                 request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100],
                 1 if request.form.get("sold_out") == "1" else 0, stand_id, item_id, event_id))
             if not result.rowcount:
@@ -627,6 +762,18 @@ def create_app(test_config=None):
         with db() as con:
             con.execute("DELETE FROM items WHERE id=? AND event_id=?", (item_id, event_id))
         return redirect(url_for("edit_event", event_id=event_id))
+
+    @app.post("/admin/events/<int:event_id>/items/<int:item_id>/translation")
+    def update_item_translation(event_id, item_id):
+        admin_required()
+        with db() as con:
+            result = con.execute("UPDATE items SET name_en=?,description_en=? WHERE id=? AND event_id=?", (
+                request.form.get("name_en", "").strip()[:100], request.form.get("description_en", "").strip()[:180],
+                item_id, event_id))
+            if not result.rowcount:
+                abort(404)
+        flash("Englische Übersetzung wurde gespeichert.", "success")
+        return redirect(url_for("edit_event", event_id=event_id) + "#uebersetzungen")
 
     @app.get("/health")
     def health():

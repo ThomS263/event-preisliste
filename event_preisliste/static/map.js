@@ -27,6 +27,7 @@
     marker.classList.add('active');
     detail.querySelector('strong').textContent = marker.dataset.label;
     detail.querySelector('p').textContent = marker.dataset.description || 'Keine weitere Beschreibung.';
+    if (marker.dataset.linkedStand) document.dispatchEvent(new CustomEvent('stand:select', {detail: marker.dataset.linkedStand}));
   }
   markers.forEach((marker, index) => marker.addEventListener('click', () => activate(index)));
   document.querySelectorAll('[data-marker-index]').forEach(button => button.addEventListener('click', () => activate(Number(button.dataset.markerIndex))));
