@@ -20,7 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-APP_VERSION = "0.5.1"
+APP_VERSION = "0.6.0"
 
 
 def create_app(test_config=None):
@@ -87,6 +87,15 @@ def create_app(test_config=None):
         connection.execute("PRAGMA foreign_keys=ON")
         return connection
 
+    def selected_stand_id(connection, event_id):
+        try:
+            stand_id = int(request.form.get("stand_id", "") or 0)
+        except ValueError:
+            return None
+        if stand_id and connection.execute("SELECT 1 FROM stands WHERE id=? AND event_id=?", (stand_id, event_id)).fetchone():
+            return stand_id
+        return None
+
     with db() as con:
         con.executescript("""
             CREATE TABLE IF NOT EXISTS events (
@@ -100,6 +109,12 @@ def create_app(test_config=None):
                 category TEXT NOT NULL DEFAULT 'Allgemein', name TEXT NOT NULL,
                 description TEXT NOT NULL DEFAULT '', price_cents INTEGER NOT NULL,
                 sort_order INTEGER NOT NULL DEFAULT 0, available INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS stands (
+                id INTEGER PRIMARY KEY, event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL DEFAULT 'stand', accent TEXT NOT NULL DEFAULT '#1f6f5c',
+                sort_order INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1
             );
             CREATE TABLE IF NOT EXISTS map_markers (
                 id INTEGER PRIMARY KEY, event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -123,6 +138,8 @@ def create_app(test_config=None):
             con.execute("ALTER TABLE items ADD COLUMN allergens TEXT NOT NULL DEFAULT ''")
         if "sold_out" not in item_columns:
             con.execute("ALTER TABLE items ADD COLUMN sold_out INTEGER NOT NULL DEFAULT 0")
+        if "stand_id" not in item_columns:
+            con.execute("ALTER TABLE items ADD COLUMN stand_id INTEGER REFERENCES stands(id) ON DELETE SET NULL")
 
     def admin_required():
         if not session.get("admin"):
@@ -163,12 +180,15 @@ def create_app(test_config=None):
             event = con.execute("SELECT * FROM events WHERE slug=? AND published=1 AND (publish_from='' OR publish_from<=?) AND (publish_until='' OR publish_until>=?)", (slug, now, now)).fetchone()
             if not event:
                 abort(404)
-            items = con.execute("SELECT * FROM items WHERE event_id=? AND available=1 ORDER BY category,sort_order,id", (event["id"],)).fetchall()
+            items = con.execute("SELECT i.*,s.name stand_name FROM items i LEFT JOIN stands s ON s.id=i.stand_id WHERE i.event_id=? AND i.available=1 AND (i.stand_id IS NULL OR s.active=1) ORDER BY i.category,i.sort_order,i.id", (event["id"],)).fetchall()
+            stands = con.execute("SELECT * FROM stands WHERE event_id=? AND active=1 ORDER BY sort_order,id", (event["id"],)).fetchall()
             markers = con.execute("SELECT * FROM map_markers WHERE event_id=? ORDER BY id", (event["id"],)).fetchall()
         groups = {}
         for item in items:
             groups.setdefault(item["category"], []).append(item)
-        return render_template("event.html", event=event, groups=groups, markers=markers)
+        has_general_items = any(item["stand_id"] is None for item in items)
+        return render_template("event.html", event=event, groups=groups, markers=markers,
+                               stands=stands, has_general_items=has_general_items)
 
     @app.get("/e/<slug>/map")
     def event_map(slug):
@@ -278,11 +298,66 @@ def create_app(test_config=None):
         admin_required()
         with db() as con:
             event = con.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
-            items = con.execute("SELECT * FROM items WHERE event_id=? ORDER BY category,sort_order,id", (event_id,)).fetchall()
+            items = con.execute("SELECT i.*,s.name stand_name FROM items i LEFT JOIN stands s ON s.id=i.stand_id WHERE i.event_id=? ORDER BY i.category,i.sort_order,i.id", (event_id,)).fetchall()
+            stands = con.execute("SELECT s.*,COUNT(i.id) item_count FROM stands s LEFT JOIN items i ON i.stand_id=s.id WHERE s.event_id=? GROUP BY s.id ORDER BY s.sort_order,s.id", (event_id,)).fetchall()
             markers = con.execute("SELECT * FROM map_markers WHERE event_id=? ORDER BY id", (event_id,)).fetchall()
         if not event:
             abort(404)
-        return render_template("edit.html", event=event, items=items, markers=markers)
+        return render_template("edit.html", event=event, items=items, markers=markers, stands=stands)
+
+    @app.post("/admin/events/<int:event_id>/stands")
+    def add_stand(event_id):
+        admin_required()
+        name = request.form.get("name", "").strip()[:80]
+        kind = request.form.get("kind", "stand")
+        accent = request.form.get("accent", "#1f6f5c")
+        if not name:
+            flash("Der Stand benötigt einen Namen.", "error")
+            return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+        if kind not in {"stand", "essen", "getraenk", "handwerk", "verein", "info"}:
+            kind = "stand"
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
+            accent = "#1f6f5c"
+        with db() as con:
+            if not con.execute("SELECT 1 FROM events WHERE id=?", (event_id,)).fetchone():
+                abort(404)
+            con.execute("INSERT INTO stands(event_id,name,description,kind,accent,sort_order) VALUES(?,?,?,?,?,?)", (
+                event_id, name, request.form.get("description", "").strip()[:180], kind, accent,
+                int(request.form.get("sort_order", 0) or 0)))
+        flash("Stand wurde angelegt.", "success")
+        return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+
+    @app.post("/admin/events/<int:event_id>/stands/<int:stand_id>/update")
+    def update_stand(event_id, stand_id):
+        admin_required()
+        name = request.form.get("name", "").strip()[:80]
+        kind = request.form.get("kind", "stand")
+        accent = request.form.get("accent", "#1f6f5c")
+        if not name:
+            flash("Der Stand benötigt einen Namen.", "error")
+            return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+        if kind not in {"stand", "essen", "getraenk", "handwerk", "verein", "info"}:
+            kind = "stand"
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
+            accent = "#1f6f5c"
+        with db() as con:
+            result = con.execute("UPDATE stands SET name=?,description=?,kind=?,accent=?,sort_order=?,active=? WHERE id=? AND event_id=?", (
+                name, request.form.get("description", "").strip()[:180], kind, accent,
+                int(request.form.get("sort_order", 0) or 0), 1 if request.form.get("active") == "1" else 0,
+                stand_id, event_id))
+            if not result.rowcount:
+                abort(404)
+        flash("Stand wurde gespeichert.", "success")
+        return redirect(url_for("edit_event", event_id=event_id) + "#staende")
+
+    @app.post("/admin/events/<int:event_id>/stands/<int:stand_id>/delete")
+    def delete_stand(event_id, stand_id):
+        admin_required()
+        with db() as con:
+            con.execute("UPDATE items SET stand_id=NULL WHERE event_id=? AND stand_id=?", (event_id, stand_id))
+            con.execute("DELETE FROM stands WHERE id=? AND event_id=?", (stand_id, event_id))
+        flash("Stand wurde gelöscht. Seine Artikel sind jetzt allgemein zugeordnet.", "success")
+        return redirect(url_for("edit_event", event_id=event_id) + "#staende")
 
     @app.post("/admin/events/<int:event_id>/map")
     def upload_map(event_id):
@@ -401,7 +476,15 @@ def create_app(test_config=None):
                 cursor = con.execute("INSERT INTO events(slug,title,subtitle,date_text,location,opening_hours,accent,published) VALUES(?,?,?,?,?,?,?,0)", (
                     new_slug, source["title"] + " – Kopie", source["subtitle"], source["date_text"], source["location"], source["opening_hours"], source["accent"]))
                 new_id = cursor.lastrowid
-                con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,available,labels,allergens,sold_out) SELECT ?,category,name,description,price_cents,sort_order,available,labels,allergens,0 FROM items WHERE event_id=?", (new_id, event_id))
+                stand_map = {}
+                for stand in con.execute("SELECT * FROM stands WHERE event_id=? ORDER BY id", (event_id,)).fetchall():
+                    created = con.execute("INSERT INTO stands(event_id,name,description,kind,accent,sort_order,active) VALUES(?,?,?,?,?,?,?)", (
+                        new_id, stand["name"], stand["description"], stand["kind"], stand["accent"], stand["sort_order"], stand["active"]))
+                    stand_map[stand["id"]] = created.lastrowid
+                for item in con.execute("SELECT * FROM items WHERE event_id=? ORDER BY id", (event_id,)).fetchall():
+                    con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,available,labels,allergens,sold_out,stand_id) VALUES(?,?,?,?,?,?,?,?,?,0,?)", (
+                        new_id, item["category"], item["name"], item["description"], item["price_cents"], item["sort_order"],
+                        item["available"], item["labels"], item["allergens"], stand_map.get(item["stand_id"])))
         except sqlite3.IntegrityError:
             flash("Diese Adresse wird bereits verwendet.", "error")
             return redirect(url_for("edit_event", event_id=event_id))
@@ -411,12 +494,12 @@ def create_app(test_config=None):
     def export_items(event_id):
         admin_required()
         with db() as con:
-            rows = con.execute("SELECT category,name,description,price_cents,labels,allergens,sort_order,sold_out FROM items WHERE event_id=? ORDER BY sort_order,id", (event_id,)).fetchall()
+            rows = con.execute("SELECT i.category,i.name,i.description,i.price_cents,i.labels,i.allergens,i.sort_order,i.sold_out,s.name stand_name FROM items i LEFT JOIN stands s ON s.id=i.stand_id WHERE i.event_id=? ORDER BY i.sort_order,i.id", (event_id,)).fetchall()
         output = io.StringIO()
         writer = csv.writer(output, delimiter=";")
-        writer.writerow(["Kategorie", "Name", "Beschreibung", "Preis", "Kennzeichnungen", "Allergene", "Reihenfolge", "Ausverkauft"])
+        writer.writerow(["Stand", "Kategorie", "Name", "Beschreibung", "Preis", "Kennzeichnungen", "Allergene", "Reihenfolge", "Ausverkauft"])
         for row in rows:
-            writer.writerow([row["category"], row["name"], row["description"], f'{row["price_cents"]/100:.2f}', row["labels"], row["allergens"], row["sort_order"], row["sold_out"]])
+            writer.writerow([row["stand_name"] or "", row["category"], row["name"], row["description"], f'{row["price_cents"]/100:.2f}', row["labels"], row["allergens"], row["sort_order"], row["sold_out"]])
         return Response("\ufeff" + output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": f'attachment; filename="preisliste-{event_id}.csv"'})
 
     @app.post("/admin/events/<int:event_id>/items/import")
@@ -428,12 +511,19 @@ def create_app(test_config=None):
         try:
             text = upload.read(512 * 1024).decode("utf-8-sig")
             rows = list(csv.DictReader(io.StringIO(text), delimiter=";"))[:1000]
-            values = []
-            for row in rows:
-                cents = int((Decimal(row["Preis"].replace(",", ".")) * 100).quantize(Decimal("1")))
-                values.append((event_id, row.get("Kategorie", "Allgemein")[:60], row["Name"][:100], row.get("Beschreibung", "")[:180], cents, int(row.get("Reihenfolge", 0) or 0), row.get("Kennzeichnungen", "")[:100], row.get("Allergene", "")[:100], 1 if row.get("Ausverkauft") in {"1", "ja", "true"} else 0))
             with db() as con:
-                con.executemany("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,labels,allergens,sold_out) VALUES(?,?,?,?,?,?,?,?,?)", values)
+                stands_by_name = {stand["name"].casefold(): stand["id"] for stand in con.execute("SELECT id,name FROM stands WHERE event_id=?", (event_id,))}
+                values = []
+                for row in rows:
+                    cents = int((Decimal(row["Preis"].replace(",", ".")) * 100).quantize(Decimal("1")))
+                    stand_name = row.get("Stand", "").strip()[:80]
+                    stand_id = stands_by_name.get(stand_name.casefold()) if stand_name else None
+                    if stand_name and stand_id is None:
+                        created = con.execute("INSERT INTO stands(event_id,name) VALUES(?,?)", (event_id, stand_name))
+                        stand_id = created.lastrowid
+                        stands_by_name[stand_name.casefold()] = stand_id
+                    values.append((event_id, row.get("Kategorie", "Allgemein")[:60], row["Name"][:100], row.get("Beschreibung", "")[:180], cents, int(row.get("Reihenfolge", 0) or 0), row.get("Kennzeichnungen", "")[:100], row.get("Allergene", "")[:100], 1 if row.get("Ausverkauft") in {"1", "ja", "true"} else 0, stand_id))
+                con.executemany("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,labels,allergens,sold_out,stand_id) VALUES(?,?,?,?,?,?,?,?,?,?)", values)
             flash(f"{len(values)} Artikel wurden importiert.", "success")
         except (KeyError, ValueError, InvalidOperation, UnicodeDecodeError):
             flash("CSV konnte nicht gelesen werden. Bitte zuerst eine Vorlage exportieren.", "error")
@@ -477,7 +567,7 @@ def create_app(test_config=None):
 
     @app.get("/service-worker.js")
     def service_worker():
-        script = "const C='event-preisliste-v2';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css','/static/extras.css','/static/logo.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
+        script = "const C='event-preisliste-v3';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css','/static/extras.css','/static/logo.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
         return Response(script, mimetype="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
     @app.post("/admin/events/<int:event_id>/items")
@@ -498,10 +588,11 @@ def create_app(test_config=None):
         with db() as con:
             if not con.execute("SELECT 1 FROM events WHERE id=?", (event_id,)).fetchone():
                 abort(404)
-            con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,labels,allergens) VALUES(?,?,?,?,?,?,?,?)", (
+            stand_id = selected_stand_id(con, event_id)
+            con.execute("INSERT INTO items(event_id,category,name,description,price_cents,sort_order,labels,allergens,stand_id) VALUES(?,?,?,?,?,?,?,?,?)", (
                 event_id, request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
                 request.form.get("description", "").strip()[:180], cents, int(request.form.get("sort_order", 0) or 0),
-                request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100]))
+                request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100], stand_id))
         return redirect(url_for("edit_event", event_id=event_id))
 
     @app.post("/admin/events/<int:event_id>/items/<int:item_id>/update")
@@ -519,11 +610,12 @@ def create_app(test_config=None):
             flash("Der Artikel benötigt einen Namen.", "error")
             return redirect(url_for("edit_event", event_id=event_id))
         with db() as con:
-            result = con.execute("UPDATE items SET category=?,name=?,description=?,price_cents=?,sort_order=?,labels=?,allergens=?,sold_out=? WHERE id=? AND event_id=?", (
+            stand_id = selected_stand_id(con, event_id)
+            result = con.execute("UPDATE items SET category=?,name=?,description=?,price_cents=?,sort_order=?,labels=?,allergens=?,sold_out=?,stand_id=? WHERE id=? AND event_id=?", (
                 request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
                 request.form.get("description", "").strip()[:180], cents, int(request.form.get("sort_order", 0) or 0),
                 request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100],
-                1 if request.form.get("sold_out") == "1" else 0, item_id, event_id))
+                1 if request.form.get("sold_out") == "1" else 0, stand_id, item_id, event_id))
             if not result.rowcount:
                 abort(404)
         flash("Artikel wurde gespeichert.", "success")

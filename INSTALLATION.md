@@ -2,7 +2,7 @@
 
 ## Einfache Installation über die Oberfläche
 
-1. Die [CasaOS-Importdatei](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.1/Apps/EventPreisliste/docker-compose.yml) öffnen und den gesamten Inhalt kopieren.
+1. Die [CasaOS-Importdatei](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.6.0/Apps/EventPreisliste/docker-compose.yml) öffnen und den gesamten Inhalt kopieren.
 2. In CasaOS **App Store → Custom Install** öffnen.
 3. Oben rechts **Import** wählen, den YAML-Inhalt einfügen und bestätigen.
 4. Optional als `EVENT_PUBLIC_URL` eine externe HTTPS-Adresse für öffentlich nutzbare QR-Codes eintragen. Im Heimnetz kann das Feld leer bleiben.
@@ -22,7 +22,7 @@ CasaOS speichert Events, Preislisten und Pläne unter `/DATA/AppData/event-preis
 ## Aktualisieren – ohne Datenverlust
 
 1. Im Admin-Panel unter **Sicherheit & Backup** vorher ein Backup herunterladen.
-2. In CasaOS bei **Event-Preisliste → Einstellungen** das Docker-Image auf den Tag der [neuesten Version](https://github.com/ThomS263/event-preisliste/releases/latest) ändern, zum Beispiel `ghcr.io/thoms263/event-preisliste:0.5.1`.
+2. In CasaOS bei **Event-Preisliste → Einstellungen** das Docker-Image auf den Tag der [neuesten Version](https://github.com/ThomS263/event-preisliste/releases/latest) ändern, zum Beispiel `ghcr.io/thoms263/event-preisliste:0.6.0`.
 3. **Speichern** beziehungsweise **Neu erstellen** wählen. CasaOS lädt das neue Image automatisch.
 4. Die Kachel öffnen und unten in der Seitenleiste die Versionsnummer kontrollieren.
 

@@ -118,3 +118,11 @@ html { scroll-behavior: smooth; scroll-padding-top: 86px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }.stats-grid article { align-items: flex-start; flex-direction: column; }.stats-grid article > div > span { white-space: normal; }
   .admin-topbar small { display: none; }.section-head { margin-bottom: 16px; }.event-meta .status { padding-inline: 7px; }
 }
+
+.stand-editor { display: grid; gap: 9px; }
+.stand-editor > details { overflow: hidden; border: 1px solid #e0e6e3; border-radius: 12px; background: #fff; }
+.stand-editor > details > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.stand-editor > details > summary > span:nth-child(2) { min-width: 0; display: grid; flex: 1; }
+.stand-editor summary small { color: var(--muted); font-size: .76rem; font-weight: 500; }
+.stand-editor details[open] > summary { border-bottom: 1px solid #e5eae7; background: #fafcfb; }
+.stand-dot { width: 38px; height: 38px; flex: none; border-radius: 11px; background: var(--stand-accent); }

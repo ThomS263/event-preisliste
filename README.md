@@ -4,7 +4,7 @@
 
 Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehrfeste, Vereinsfeste und andere Veranstaltungen. Für jedes Event wird eine eigene öffentliche Seite mit QR-Code erzeugt.
 
-**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.5.1/Apps/EventPreisliste/docker-compose.yml)**
+**[CasaOS-Installation](INSTALLATION.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v0.6.0/Apps/EventPreisliste/docker-compose.yml)**
 
 ## Ein Blick in die App
 
@@ -15,12 +15,15 @@ Die Handyansicht zeigt die Angebote für Gäste. Im Admin-Panel können Veransta
 <a href="docs/screenshots/handy.png"><img src="docs/screenshots/handy.png" width="215" alt="Preisliste des Adventmarkts auf dem Handy"></a>
 <a href="docs/screenshots/verwaltung.png"><img src="docs/screenshots/verwaltung.png" width="580" alt="Professionelles Verwaltungs-Dashboard"></a>
 <a href="docs/screenshots/verwaltung-handy.png"><img src="docs/screenshots/verwaltung-handy.png" width="220" alt="Verwaltung auf dem Handy"></a>
+<a href="docs/screenshots/staende-handy.png"><img src="docs/screenshots/staende-handy.png" width="220" alt="Stand auswählen auf dem Handy"></a>
 
 <a href="docs/screenshots/event-bearbeiten.png"><img src="docs/screenshots/event-bearbeiten.png" width="800" alt="Event, Preisliste, Plan und QR-Code bearbeiten"></a>
 
 ## Funktionen
 
 - mehrere Veranstaltungen getrennt verwalten
+- mehrere Stände pro Veranstaltung mit eigener Art, Farbe, Beschreibung und Artikeln
+- große Standauswahl für Besucher mit kombinierter Suche und Filterung
 - Titel, Untertitel, Datum, Ort und Farbe pro Event
 - Artikel nach Kategorien mit Beschreibung und Europreis
 - Event zunächst als Entwurf vorbereiten und später veröffentlichen
@@ -84,14 +87,12 @@ pytest -q
 
 Unter `/admin/login` werden alle Veranstaltungen zentral verwaltet. Das Dashboard zeigt Events, veröffentlichte Events, Artikel und Planpunkte. In jedem Event gibt es Bereiche für Eventdaten, Preise, Plan und QR-Code. Artikel können nachträglich geändert, als ausverkauft markiert und mit Kennzeichnungen wie `vegan` sowie Allergencodes versehen werden.
 
-## Geplante nächste Schritte
+## Mögliche nächste Schritte
 
-- Events und bestehende Artikel vollständig bearbeiten
-- Artikel als „ausverkauft“ markieren
-- optionale Bilder und Logos pro Event
+- eigene Bilder und Logos pro Event oder Stand
 - mehrsprachige Preislisten
 - Druckansicht für QR-Code-Schilder
-- CasaOS-Installationspaket
+- Stand direkt mit einem Punkt auf dem interaktiven Plan verbinden
 
 ## Lizenz
 

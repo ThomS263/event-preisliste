@@ -100,7 +100,7 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.5.1"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.6.0"
     assert service["pull_policy"] == "always"
     assert service["ports"][0]["published"] == "8090"
     compose = yaml.safe_load(Path("compose.yaml").read_text())
@@ -120,7 +120,7 @@ def test_clone_csv_backup_and_pwa(tmp_path):
     backup = client.get("/admin/backup.zip")
     assert backup.status_code == 200 and backup.data.startswith(b"PK")
     assert client.get("/manifest.webmanifest").status_code == 200
-    assert "event-preisliste-v2" in client.get("/service-worker.js").get_data(as_text=True)
+    assert "event-preisliste-v3" in client.get("/service-worker.js").get_data(as_text=True)
 
 
 def test_password_change_and_login_rate_limit(tmp_path):
@@ -145,3 +145,35 @@ def test_first_run_setup(tmp_path, monkeypatch):
     })
     assert response.location.endswith("/admin")
     assert (tmp_path / ".admin-password-hash").is_file()
+
+
+def test_stands_can_be_selected_and_items_assigned(tmp_path):
+    client = app(tmp_path).test_client()
+    login(client)
+    client.post("/admin/events", data={"title": "Adventmarkt", "slug": "adventmarkt"})
+    client.post("/admin/events/1/stands", data={
+        "name": "Punschstand", "description": "Heiße Getränke", "kind": "getraenk",
+        "accent": "#8b1e3f", "sort_order": "1",
+    })
+    client.post("/admin/events/1/stands", data={
+        "name": "Kekshütte", "description": "Hausgemachte Kekse", "kind": "essen",
+        "accent": "#225544", "sort_order": "2",
+    })
+    client.post("/admin/events/1/items", data={
+        "stand_id": "1", "category": "Getränke", "name": "Kinderpunsch", "price": "3,50",
+    })
+    client.post("/admin/events/1/items", data={
+        "stand_id": "2", "category": "Essen", "name": "Vanillekipferl", "price": "2,00",
+    })
+    client.post("/admin/events/1/toggle")
+    page = client.get("/e/adventmarkt").get_data(as_text=True)
+    assert "Welchen Stand möchtest du sehen?" in page
+    assert 'data-stand="1"' in page and "Kinderpunsch" in page
+    assert 'data-stand="2"' in page and "Vanillekipferl" in page
+    client.post("/admin/events/1/stands/2/update", data={
+        "name": "Kekshütte", "kind": "essen", "accent": "#225544", "sort_order": "2",
+    })
+    page = client.get("/e/adventmarkt").get_data(as_text=True)
+    assert "Kinderpunsch" in page and "Vanillekipferl" not in page
+    exported = client.get("/admin/events/1/items.csv").get_data(as_text=True)
+    assert "Stand;Kategorie" in exported and "Punschstand" in exported

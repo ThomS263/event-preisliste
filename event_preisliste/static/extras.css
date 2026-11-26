@@ -12,3 +12,20 @@
 .setup-form { display: grid; gap: 14px; margin-top: 24px; text-align: left; }
 .setup-form button { margin-top: 4px; }
 .setup-note { display: block; margin-top: 18px; color: var(--muted); }
+
+.stand-picker { margin: 0 0 26px; }
+.stand-picker h2 { margin-bottom: 14px; }
+.stand-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.stand-option { min-height: 76px; display: flex; align-items: center; gap: 12px; padding: 12px; border: 2px solid transparent; border-radius: 15px; color: var(--ink); background: #fff; box-shadow: 0 4px 16px #17332c12; text-align: left; }
+.stand-option:hover { border-color: var(--stand-accent, #6d9f90); }
+.stand-option.active { border-color: var(--stand-accent, var(--ink)); background: #f4f8f6; }
+.stand-symbol { width: 42px; height: 42px; display: grid; flex: none; place-items: center; border-radius: 12px; color: #fff; background: var(--stand-accent, var(--ink)); font-size: 1.1rem; }
+.stand-option > span:last-child { min-width: 0; display: grid; }
+.stand-option b, .stand-option small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stand-option small { color: var(--muted); font-size: .75rem; font-weight: 500; }
+.item-stand { display: inline-block; margin-bottom: 3px; color: #397765; font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+
+@media (max-width: 600px) {
+  .stand-options { display: flex; overflow-x: auto; margin-inline: -18px; padding: 2px 18px 10px; scroll-snap-type: x proximity; }
+  .stand-option { min-width: 220px; scroll-snap-align: start; }
+}
