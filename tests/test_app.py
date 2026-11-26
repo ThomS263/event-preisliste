@@ -100,7 +100,7 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.7.0"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.8.0"
     assert service["pull_policy"] == "always"
     assert service["ports"][0]["published"] == "8090"
     compose = yaml.safe_load(Path("compose.yaml").read_text())
@@ -120,7 +120,9 @@ def test_clone_csv_backup_and_pwa(tmp_path):
     backup = client.get("/admin/backup.zip")
     assert backup.status_code == 200 and backup.data.startswith(b"PK")
     assert client.get("/manifest.webmanifest").status_code == 200
-    assert "event-preisliste-v4" in client.get("/service-worker.js").get_data(as_text=True)
+    assert "event-preisliste-v5" in client.get("/service-worker.js").get_data(as_text=True)
+    restored = client.post("/admin/backup/restore", data={"backup": (io.BytesIO(backup.data), "backup.zip")}, content_type="multipart/form-data")
+    assert restored.status_code == 302
 
 
 def test_password_change_and_login_rate_limit(tmp_path):

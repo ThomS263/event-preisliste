@@ -19,6 +19,16 @@
   }
 
   const markers = [...document.querySelectorAll('.public-map .map-marker')];
+  const publicMap = document.querySelector('.public-map');
+  if (publicMap) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'secondary map-fullscreen';
+    button.textContent = document.documentElement.lang === 'en' ? 'Open map full screen' : 'Plan im Vollbild öffnen';
+    publicMap.before(button);
+    button.addEventListener('click', async () => {
+      try { if (!document.fullscreenElement) await publicMap.requestFullscreen(); else await document.exitFullscreen(); } catch (_) {}
+    });
+  }
   const detail = document.querySelector('[data-map-detail]');
   function activate(index) {
     const marker = markers[index];

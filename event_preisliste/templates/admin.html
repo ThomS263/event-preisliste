@@ -41,7 +41,7 @@
   </form>
 </section>
 <section class="settings-grid" id="settings">
-  <article class="admin-card"><span class="setting-icon">↓</span><div><h2>Backup</h2><p>Alle Events, Preise und Pläne als ZIP-Datei sichern.</p><a class="button secondary" href="{{ url_for('backup') }}">Backup herunterladen</a></div></article>
+  <article class="admin-card"><span class="setting-icon">↓</span><div><h2>Backup</h2><p>Alle Daten sichern. Zusätzlich bleiben automatisch die letzten 14 täglichen Datenbankstände erhalten.</p><a class="button secondary" href="{{ url_for('backup') }}">Backup herunterladen</a><form method="post" enctype="multipart/form-data" action="{{ url_for('restore_backup') }}" data-confirm="Das aktuelle System wirklich ersetzen? Vorher wird automatisch eine Sicherheitskopie erstellt." class="restore-form"><label class="file-button">Backup auswählen<input type="file" name="backup" accept=".zip,application/zip" required></label><button class="danger" type="submit">Prüfen und wiederherstellen</button></form></div></article>
   <article class="admin-card"><span class="setting-icon">⌘</span><div><h2>Adminpasswort</h2><p>Verwende mindestens 12 Zeichen und ein einzigartiges Passwort.</p><form method="post" action="{{ url_for('change_password') }}" class="password-form"><input type="password" name="password" minlength="12" required placeholder="Neues Passwort" autocomplete="new-password"><button type="submit" class="secondary">Ändern</button></form></div></article>
 </section>
 {% endblock %}

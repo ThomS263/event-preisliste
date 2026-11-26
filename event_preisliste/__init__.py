@@ -4,7 +4,9 @@ import json
 import os
 import re
 import secrets
+import shutil
 import sqlite3
+import tempfile
 import time
 import zipfile
 from collections import defaultdict, deque
@@ -20,7 +22,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.0"
 
 
 def create_app(test_config=None):
@@ -33,6 +35,8 @@ def create_app(test_config=None):
     map_dir.mkdir(exist_ok=True)
     stand_dir = data_dir / "stands"
     stand_dir.mkdir(exist_ok=True)
+    backup_dir = data_dir / "backups"
+    backup_dir.mkdir(exist_ok=True)
     secret_file = data_dir / ".secret"
     if secret_file.exists():
         secret = secret_file.read_text().strip()
@@ -151,6 +155,9 @@ def create_app(test_config=None):
         for name in ("name_en", "description_en"):
             if name not in item_columns:
                 con.execute(f"ALTER TABLE items ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+        for name in ("available_from", "available_until"):
+            if name not in item_columns:
+                con.execute(f"ALTER TABLE items ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
         stand_columns = {row["name"] for row in con.execute("PRAGMA table_info(stands)")}
         stand_migrations = {
             "name_en": "TEXT NOT NULL DEFAULT ''", "description_en": "TEXT NOT NULL DEFAULT ''",
@@ -161,6 +168,19 @@ def create_app(test_config=None):
         for name, definition in stand_migrations.items():
             if name not in stand_columns:
                 con.execute(f"ALTER TABLE stands ADD COLUMN {name} {definition}")
+
+    # One lightweight local database snapshot per day; keep the newest 14.
+    daily_backup = backup_dir / f"events-{time.strftime('%Y%m%d')}.sqlite3"
+    if not daily_backup.exists():
+        temporary_backup = backup_dir / f".{daily_backup.name}.{secrets.token_hex(4)}.tmp"
+        source = sqlite3.connect(app.config["DATABASE"])
+        target = sqlite3.connect(temporary_backup)
+        source.backup(target)
+        target.close()
+        source.close()
+        os.replace(temporary_backup, daily_backup)
+    for old_backup in sorted(backup_dir.glob("events-*.sqlite3"))[:-14]:
+        old_backup.unlink(missing_ok=True)
 
     def admin_required():
         if not session.get("admin"):
@@ -201,7 +221,7 @@ def create_app(test_config=None):
             event = con.execute("SELECT * FROM events WHERE slug=? AND published=1 AND (publish_from='' OR publish_from<=?) AND (publish_until='' OR publish_until>=?)", (slug, now, now)).fetchone()
             if not event:
                 abort(404)
-            items = con.execute("SELECT i.*,s.name stand_name,s.name_en stand_name_en,s.kind stand_kind,s.status stand_status FROM items i LEFT JOIN stands s ON s.id=i.stand_id WHERE i.event_id=? AND i.available=1 AND (i.stand_id IS NULL OR s.active=1) ORDER BY i.category,i.sort_order,i.id", (event["id"],)).fetchall()
+            items = con.execute("SELECT i.*,s.name stand_name,s.name_en stand_name_en,s.kind stand_kind,s.status stand_status FROM items i LEFT JOIN stands s ON s.id=i.stand_id WHERE i.event_id=? AND i.available=1 AND (i.available_from='' OR i.available_from<=?) AND (i.available_until='' OR i.available_until>=?) AND (i.stand_id IS NULL OR s.active=1) ORDER BY i.category,i.sort_order,i.id", (event["id"], now, now)).fetchall()
             stands = con.execute("SELECT * FROM stands WHERE event_id=? AND active=1 ORDER BY sort_order,id", (event["id"],)).fetchall()
             markers = con.execute("SELECT * FROM map_markers WHERE event_id=? ORDER BY id", (event["id"],)).fetchall()
         groups = {}
@@ -675,6 +695,46 @@ def create_app(test_config=None):
         output.seek(0)
         return send_file(output, mimetype="application/zip", as_attachment=True, download_name=f"event-preisliste-{time.strftime('%Y%m%d')}.zip")
 
+    @app.post("/admin/backup/restore")
+    def restore_backup():
+        admin_required()
+        upload = request.files.get("backup")
+        if not upload:
+            abort(400)
+        data = upload.read(100 * 1024 * 1024 + 1)
+        if len(data) > 100 * 1024 * 1024:
+            flash("Das Backup ist größer als 100 MB.", "error")
+            return redirect(url_for("admin") + "#settings")
+        try:
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                    if sum(info.file_size for info in archive.infolist()) > 200 * 1024 * 1024:
+                        raise ValueError
+                    allowed = [name for name in archive.namelist() if name == "events.sqlite3" or re.fullmatch(r"(?:maps|stands)/[A-Za-z0-9._-]+", name)]
+                    if "events.sqlite3" not in allowed:
+                        raise ValueError
+                    for name in allowed:
+                        archive.extract(name, root)
+                candidate = root / "events.sqlite3"
+                check = sqlite3.connect(candidate)
+                integrity = check.execute("PRAGMA integrity_check").fetchone()[0]
+                check.close()
+                if integrity != "ok":
+                    raise ValueError
+                shutil.copy2(app.config["DATABASE"], backup_dir / f"before-restore-{time.strftime('%Y%m%d-%H%M%S')}.sqlite3")
+                os.replace(candidate, app.config["DATABASE"])
+                for folder, target in (("maps", map_dir), ("stands", stand_dir)):
+                    source = root / folder
+                    if source.exists():
+                        for path in source.iterdir():
+                            if path.is_file():
+                                shutil.copy2(path, target / path.name)
+            flash("Backup wurde geprüft und wiederhergestellt.", "success")
+        except (zipfile.BadZipFile, ValueError, sqlite3.DatabaseError, OSError):
+            flash("Dieses Backup ist ungültig oder beschädigt.", "error")
+        return redirect(url_for("admin") + "#settings")
+
     @app.post("/admin/password")
     def change_password():
         admin_required()
@@ -700,7 +760,7 @@ def create_app(test_config=None):
 
     @app.get("/service-worker.js")
     def service_worker():
-        script = "const C='event-preisliste-v4';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css','/static/extras.css','/static/logo.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
+        script = "const C='event-preisliste-v5';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/static/style.css','/static/admin.css','/static/extras.css','/static/logo.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(fetch(e.request).then(r=>{let x=r.clone();caches.open(C).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))})"
         return Response(script, mimetype="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
     @app.post("/admin/events/<int:event_id>/items")
@@ -722,11 +782,12 @@ def create_app(test_config=None):
             if not con.execute("SELECT 1 FROM events WHERE id=?", (event_id,)).fetchone():
                 abort(404)
             stand_id = selected_stand_id(con, event_id)
-            con.execute("INSERT INTO items(event_id,category,name,description,name_en,description_en,price_cents,sort_order,labels,allergens,stand_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)", (
+            con.execute("INSERT INTO items(event_id,category,name,description,name_en,description_en,price_cents,sort_order,labels,allergens,stand_id,available_from,available_until) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", (
                 event_id, request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
                 request.form.get("description", "").strip()[:180], request.form.get("name_en", "").strip()[:100],
                 request.form.get("description_en", "").strip()[:180], cents, form_int("sort_order"),
-                request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100], stand_id))
+                request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100], stand_id,
+                request.form.get("available_from", "")[:16], request.form.get("available_until", "")[:16]))
         return redirect(url_for("edit_event", event_id=event_id))
 
     @app.post("/admin/events/<int:event_id>/items/<int:item_id>/update")
@@ -745,12 +806,13 @@ def create_app(test_config=None):
             return redirect(url_for("edit_event", event_id=event_id))
         with db() as con:
             stand_id = selected_stand_id(con, event_id)
-            result = con.execute("UPDATE items SET category=?,name=?,description=?,name_en=?,description_en=?,price_cents=?,sort_order=?,labels=?,allergens=?,sold_out=?,stand_id=? WHERE id=? AND event_id=?", (
+            result = con.execute("UPDATE items SET category=?,name=?,description=?,name_en=?,description_en=?,price_cents=?,sort_order=?,labels=?,allergens=?,sold_out=?,stand_id=?,available_from=?,available_until=? WHERE id=? AND event_id=?", (
                 request.form.get("category", "Allgemein").strip()[:60] or "Allgemein", name,
                 request.form.get("description", "").strip()[:180], request.form.get("name_en", "").strip()[:100],
                 request.form.get("description_en", "").strip()[:180], cents, form_int("sort_order"),
                 request.form.get("labels", "").strip()[:100], request.form.get("allergens", "").strip()[:100],
-                1 if request.form.get("sold_out") == "1" else 0, stand_id, item_id, event_id))
+                1 if request.form.get("sold_out") == "1" else 0, stand_id,
+                request.form.get("available_from", "")[:16], request.form.get("available_until", "")[:16], item_id, event_id))
             if not result.rowcount:
                 abort(404)
         flash("Artikel wurde gespeichert.", "success")

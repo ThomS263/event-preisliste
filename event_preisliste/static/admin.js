@@ -26,6 +26,18 @@
     let dragged = null;
     sortList.querySelectorAll('[data-stand-id]').forEach(card => {
       const handle = card.querySelector('.drag-handle');
+      const controls = document.createElement('span');
+      controls.className = 'touch-sort';
+      controls.innerHTML = '<button type="button" aria-label="Nach oben">↑</button><button type="button" aria-label="Nach unten">↓</button>';
+      card.querySelector('summary')?.appendChild(controls);
+      controls.addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation();
+        const button = event.target.closest('button');
+        if (!button) return;
+        if (button === controls.firstElementChild && card.previousElementSibling) sortList.insertBefore(card, card.previousElementSibling);
+        if (button === controls.lastElementChild && card.nextElementSibling) sortList.insertBefore(card.nextElementSibling, card);
+        saveOrder();
+      });
       handle?.addEventListener('dragstart', event => { dragged = card; card.classList.add('dragging'); event.dataTransfer.effectAllowed = 'move'; });
       handle?.addEventListener('dragend', () => { card.classList.remove('dragging'); dragged = null; saveOrder(); });
       card.addEventListener('dragover', event => {
