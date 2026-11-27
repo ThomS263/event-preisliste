@@ -22,7 +22,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.8.1"
 
 
 def create_app(test_config=None):

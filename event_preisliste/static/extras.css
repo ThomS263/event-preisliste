@@ -48,3 +48,5 @@
   .stand-option { min-width: 220px; scroll-snap-align: start; }
   .stand-status { display: none; }
 }
+.header-admin { display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; border-radius: 10px; background: #e9eeea; text-decoration: none; font-size: .88rem; font-weight: 800; }
+.header-admin:hover { background: #dce7e1; }
