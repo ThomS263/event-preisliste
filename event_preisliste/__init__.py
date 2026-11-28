@@ -24,7 +24,7 @@ from flask.sessions import SecureCookieSessionInterface
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.9.1"
 
 
 class ProxyAwareSessionCookies(SecureCookieSessionInterface):
