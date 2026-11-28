@@ -21,6 +21,17 @@
       if (!window.confirm(form.dataset.confirm)) event.preventDefault();
     });
   });
+  document.querySelector('[data-copy-status-token]')?.addEventListener('click', async () => {
+    const input = document.querySelector('[data-status-token]');
+    const state = document.querySelector('[data-token-state]');
+    try {
+      await navigator.clipboard.writeText(input.value);
+      state.textContent = 'Status-Token wurde kopiert.';
+    } catch (_) {
+      input.type = 'text'; input.select();
+      state.textContent = 'Token ist markiert – bitte kopieren.';
+    }
+  });
   const sortList = document.querySelector('[data-stand-sort]');
   if (sortList) {
     let dragged = null;

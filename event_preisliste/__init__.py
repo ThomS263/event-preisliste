@@ -24,7 +24,7 @@ from flask.sessions import SecureCookieSessionInterface
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-APP_VERSION = "0.9.1"
+APP_VERSION = "1.0.0"
 
 
 class ProxyAwareSessionCookies(SecureCookieSessionInterface):
@@ -58,6 +58,13 @@ def create_app(test_config=None):
     secret_file.chmod(0o600)
     password_file = data_dir / ".initial-admin-password"
     password_hash_file = data_dir / ".admin-password-hash"
+    status_token_file = data_dir / ".home-assistant-status-token"
+    if not status_token_file.exists():
+        status_token_file.write_text(secrets.token_urlsafe(32) + "\n")
+    status_token_file.chmod(0o600)
+    status_token = status_token_file.read_text().strip()
+    if not status_token:
+        raise ValueError("The Home Assistant status token is empty.")
     admin_password = os.environ.get("EVENT_ADMIN_PASSWORD", "").strip()
     needs_setup = False
     if password_hash_file.exists():
@@ -371,7 +378,9 @@ def create_app(test_config=None):
         with db() as con:
             events = con.execute("SELECT e.*,COUNT(i.id) item_count FROM events e LEFT JOIN items i ON i.event_id=e.id GROUP BY e.id ORDER BY e.id DESC").fetchall()
             stats = con.execute("SELECT COUNT(*) events,(SELECT COUNT(*) FROM events WHERE published=1) published,(SELECT COUNT(*) FROM items) items,(SELECT COUNT(*) FROM map_markers) markers FROM events").fetchone()
-        return render_template("admin.html", events=events, stats=stats)
+        return render_template(
+            "admin.html", events=events, stats=stats, status_token=status_token
+        )
 
     @app.post("/admin/events")
     def create_event():
@@ -874,5 +883,32 @@ def create_app(test_config=None):
     @app.get("/health")
     def health():
         return {"ok": True, "version": APP_VERSION}
+
+    @app.get("/api/status")
+    def api_status():
+        authorization = request.headers.get("Authorization", "")
+        supplied = authorization[7:] if authorization.startswith("Bearer ") else ""
+        if not supplied or not secrets.compare_digest(supplied, status_token):
+            abort(401)
+        with db() as con:
+            stats = con.execute(
+                "SELECT COUNT(*) events,"
+                "(SELECT COUNT(*) FROM events WHERE published=1) published,"
+                "(SELECT COUNT(*) FROM items) items,"
+                "(SELECT COUNT(*) FROM stands) stands,"
+                "(SELECT COUNT(*) FROM map_markers) markers,"
+                "(SELECT COUNT(*) FROM items WHERE sold_out=1) sold_out "
+                "FROM events"
+            ).fetchone()
+        return {
+            "ok": True,
+            "version": APP_VERSION,
+            "events": stats["events"],
+            "published": stats["published"],
+            "items": stats["items"],
+            "stands": stats["stands"],
+            "markers": stats["markers"],
+            "sold_out": stats["sold_out"],
+        }
 
     return app

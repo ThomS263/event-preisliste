@@ -1,0 +1,12 @@
+{
+  "domain": "event_preisliste",
+  "name": "Event-Preisliste",
+  "categories": ["other_ecosystems"],
+  "codeowners": ["@ThomS263"],
+  "config_flow": true,
+  "documentation": "https://github.com/ThomS263/event-preisliste",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/ThomS263/event-preisliste/issues",
+  "version": "1.0.0"
+}

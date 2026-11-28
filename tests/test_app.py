@@ -100,7 +100,7 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.9.1"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:1.0.0"
     assert service["pull_policy"] == "always"
     assert service["ports"][0]["published"] == "8090"
     compose = yaml.safe_load(Path("compose.yaml").read_text())
@@ -147,6 +147,16 @@ def test_first_run_setup(tmp_path, monkeypatch):
     })
     assert response.location.endswith("/admin")
     assert (tmp_path / ".admin-password-hash").is_file()
+
+
+def test_read_only_home_assistant_status_token(tmp_path):
+    client = app(tmp_path).test_client()
+    token = (tmp_path / ".home-assistant-status-token").read_text().strip()
+    assert client.get("/api/status").status_code == 401
+    assert client.get("/api/status", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    response = client.get("/api/status", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json["version"] == "1.0.0"
 
 
 def test_security_headers_and_public_url_validation(tmp_path, monkeypatch):
