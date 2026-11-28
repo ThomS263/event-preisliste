@@ -55,7 +55,7 @@ def create_app(test_config=None):
     else:
         secret = secrets.token_hex(32)
         secret_file.write_text(secret)
-        secret_file.chmod(0o600)
+    secret_file.chmod(0o600)
     password_file = data_dir / ".initial-admin-password"
     password_hash_file = data_dir / ".admin-password-hash"
     admin_password = os.environ.get("EVENT_ADMIN_PASSWORD", "").strip()
