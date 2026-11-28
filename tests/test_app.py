@@ -100,7 +100,7 @@ def test_admin_can_edit_event_and_mark_item_sold_out(tmp_path):
 def test_casaos_manifest_is_installable():
     manifest = yaml.safe_load(Path("Apps/EventPreisliste/docker-compose.yml").read_text())
     service = manifest["services"]["event-preisliste"]
-    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.8.1"
+    assert service["image"] == "ghcr.io/thoms263/event-preisliste:0.9.0"
     assert service["pull_policy"] == "always"
     assert service["ports"][0]["published"] == "8090"
     compose = yaml.safe_load(Path("compose.yaml").read_text())
@@ -147,6 +147,30 @@ def test_first_run_setup(tmp_path, monkeypatch):
     })
     assert response.location.endswith("/admin")
     assert (tmp_path / ".admin-password-hash").is_file()
+
+
+def test_security_headers_and_public_url_validation(tmp_path, monkeypatch):
+    client = app(tmp_path).test_client()
+    assert client.post(
+        "/admin/login",
+        headers={"Sec-Fetch-Site": "cross-site"},
+        data={"password": "test-passwort"},
+    ).status_code == 403
+    response = client.post(
+        "/admin/login",
+        headers={"X-Forwarded-Proto": "https"},
+        data={"password": "test-passwort"},
+    )
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["Strict-Transport-Security"].startswith("max-age=")
+    assert "Secure" in response.headers.get("Set-Cookie", "")
+    monkeypatch.setenv("EVENT_PUBLIC_URL", "https://example.org/unsafe")
+    try:
+        create_app({"TESTING": True, "DATA_DIR": tmp_path / "invalid"})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("An EVENT_PUBLIC_URL with a path must be rejected")
 
 
 def test_stands_can_be_selected_and_items_assigned(tmp_path):

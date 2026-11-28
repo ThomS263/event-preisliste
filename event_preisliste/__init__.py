@@ -10,6 +10,7 @@ import tempfile
 import time
 import zipfile
 from collections import defaultdict, deque
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -19,14 +20,25 @@ from PIL import Image, UnidentifiedImageError
 from flask import (Flask, abort, flash, jsonify, redirect, render_template, request,
                    Response, send_file, send_from_directory, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
+from flask.sessions import SecureCookieSessionInterface
 
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-APP_VERSION = "0.8.1"
+APP_VERSION = "0.9.0"
+
+
+class ProxyAwareSessionCookies(SecureCookieSessionInterface):
+    def get_cookie_secure(self, app):
+        return (
+            super().get_cookie_secure(app)
+            or request.is_secure
+            or request.headers.get("X-Forwarded-Proto", "").split(",")[-1].strip() == "https"
+        )
 
 
 def create_app(test_config=None):
     app = Flask(__name__)
+    app.session_interface = ProxyAwareSessionCookies()
     data_dir = Path(os.environ.get("EVENT_DATA_DIR", "/data"))
     if test_config:
         data_dir = Path(test_config.get("DATA_DIR", data_dir))
@@ -63,12 +75,25 @@ def create_app(test_config=None):
         ADMIN_PASSWORD=admin_password,
         NEEDS_SETUP=needs_setup,
         PUBLIC_URL=os.environ.get("EVENT_PUBLIC_URL", "").rstrip("/"),
+        SESSION_COOKIE_SAMESITE="Strict",
         SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_REFRESH_EACH_REQUEST=False,
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
         MAX_CONTENT_LENGTH=2 * 1024 * 1024,
     )
     if test_config:
         app.config.update(test_config)
+    public_url = urlsplit(app.config["PUBLIC_URL"])
+    if app.config["PUBLIC_URL"] and (
+        public_url.scheme not in {"http", "https"}
+        or not public_url.hostname
+        or public_url.username
+        or public_url.password
+        or public_url.path not in {"", "/"}
+        or public_url.query
+        or public_url.fragment
+    ):
+        raise ValueError("EVENT_PUBLIC_URL must be an HTTP(S) origin without a path.")
     login_attempts = defaultdict(deque)
 
     @app.context_processor
@@ -196,15 +221,22 @@ def create_app(test_config=None):
 
     @app.before_request
     def csrf_guard():
-        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not valid_origin():
-            abort(403)
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            if request.headers.get("Sec-Fetch-Site") == "cross-site" or not valid_origin():
+                abort(403)
 
     @app.after_request
     def headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; form-action 'self'; frame-ancestors 'none'"
+        if request.endpoint and request.endpoint.startswith(("admin", "login", "setup", "backup", "change_password")):
+            response.headers["Cache-Control"] = "private, no-store"
+        if request.is_secure or request.headers.get("X-Forwarded-Proto", "").split(",")[-1].strip() == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
     @app.get("/")
@@ -298,6 +330,7 @@ def create_app(test_config=None):
                 queue.clear()
                 session.clear()
                 session["admin"] = True
+                session.permanent = True
                 return redirect(url_for("admin"))
             queue.append(now)
             flash("Passwort falsch.", "error")
@@ -322,6 +355,7 @@ def create_app(test_config=None):
                 app.config["NEEDS_SETUP"] = False
                 session.clear()
                 session["admin"] = True
+                session.permanent = True
                 flash("Die Einrichtung ist abgeschlossen.", "success")
                 return redirect(url_for("admin"))
         return render_template("setup.html")

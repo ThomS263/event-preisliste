@@ -6,6 +6,7 @@ on:
     - cron: "17 4 * * 1"
 permissions:
   contents: read
+  security-events: write
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -16,3 +17,17 @@ jobs:
       - run: pip install pip-audit bandit
       - run: pip-audit -r requirements.txt
       - run: bandit -q -r event_preisliste
+      - uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+  codeql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: github/codeql-action/init@v4
+        with: { languages: python }
+      - uses: github/codeql-action/analyze@v4
