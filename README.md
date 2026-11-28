@@ -4,7 +4,7 @@
 
 Eine selbst gehostete, mobilfreundliche Preisliste für Adventmärkte, Feuerwehrfeste, Vereinsfeste und andere Veranstaltungen. Für jedes Event wird eine eigene öffentliche Seite mit QR-Code erzeugt.
 
-**[Live-Sandbox](https://thoms263.github.io/event-preisliste/)** · **[CasaOS-Installation](INSTALLATION.md)** · **[Home Assistant/HACS](docs/HOME_ASSISTANT.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v1.0.0/Apps/EventPreisliste/docker-compose.yml)**
+**[Live-Sandbox](https://thoms263.github.io/event-preisliste/)** · **[CasaOS-Installation](INSTALLATION.md)** · **[Home Assistant/HACS](docs/HOME_ASSISTANT.md)** · **[Wiki-Vorlage](docs/WIKI-VORLAGE.md)** · **[CasaOS-YAML direkt öffnen](https://raw.githubusercontent.com/ThomS263/event-preisliste/v1.0.0/Apps/EventPreisliste/docker-compose.yml)**
 
 ## Ein Blick in die App
 
